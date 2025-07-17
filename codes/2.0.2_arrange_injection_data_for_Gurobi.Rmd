@@ -1,0 +1,1643 @@
+Arrange the inyection data to use it in the Gurobi optimization problem.
+The data is of electricity injected into the grid is at household level at monthly level
+First, I add all the microgenerators - thus, I know the total of electricity inyected in a certain month
+Now I have to transform this data from monthy to hourly.
+
+Arrange the inyection data to use it in the Gurobi optimization problem.
+The data is of electricity injected into the grid is at the firm level at monthly level
+First, I add all the microgenerators - thus, I know the total of electricity inyected in a certain month
+Now I have to transform this data from monthy to hourly.
+
+
+
+```{r}
+rm(list=ls())
+library(dplyr)
+library(readxl)
+```
+
+
+#second#
+Use the inyection data of electricity into the grid:
+1) transform the data from monthly to hourly, and assume the inyected data is uniformy distributed from 8 am to 5 pm
+```{r}
+load("C:/Users/natal/OneDrive - University of Edinburgh/Net_metering_UY/Final_project/Gurobi/extrac_data.RData")
+```
+
+Eliminate some variables:
+```{r}
+final_inyection <- final_MG %>% dplyr::select(c(1:17)) %>% dplyr::select(-c(14:15))
+final_inyection <- final_inyection %>% group_by(year, month, day) %>%  summarize(ener_iny=sum(ener_iny, na.rm=TRUE)) # summ all the microgenerators that are inyecting in a specific month
+
+#which days are the electricity injected to the grid bigger than zero: From November 2018 to August 2022
+#only keeps those days
+final_inyection <- final_inyection %>% filter(ener_iny >0)
+
+#convert the data to numeric
+final_inyection$year <- as.numeric(final_inyection$year)
+final_inyection$month <- as.numeric(final_inyection$month)
+final_inyection$day <- as.numeric(final_inyection$day)
+```
+Keep the first row: add it more days and hours
+
+#2018#
+1) First row is November - 2018 
+```{r}
+nov_2018 <- final_inyection[1,]
+
+nov_2018 <- nov_2018 %>% mutate(day=1, hour=0) #create the variable day
+nov_2018 <- nov_2018[rep(seq_len(nrow(nov_2018)), each = 30), ] #multiplies each row 30 times
+nov_2018 <- nov_2018 %>% group_by(year, month, day) %>% mutate(day=1:30) # add days from 1 to 30
+
+nov_2018 <- nov_2018[rep(seq_len(nrow(nov_2018)), each = 24), ] #For each day, add 24 hours
+nov_2018 <- nov_2018 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+#If, the energy inyected is positive, then between 18 pm until 7 am is equal zero, and between 8 am to 17 pm is the electricity inyected/300. 
+#Why 23. The first 23, is to find the electricity inyected by day (eliminating those days which the thermal is equal zero)
+nov_2018 <- nov_2018 %>% mutate(elec_inyected =  ener_iny/(30-7))
+
+nov_2018 <- nov_2018 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+2) December - 2018
+```{r}
+dec_2018 <- final_inyection[2,]
+
+dec_2018 <- dec_2018 %>% mutate(day=1, hour=0) #create the variable day
+dec_2018 <- dec_2018[rep(seq_len(nrow(dec_2018)), each = 31), ] #multiplies each row 30 times
+dec_2018 <- dec_2018 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+dec_2018 <- dec_2018[rep(seq_len(nrow(dec_2018)), each = 24), ] #For each day, add 24 hours
+dec_2018 <- dec_2018 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+dec_2018 <- dec_2018 %>% mutate(elec_inyected =  ener_iny/(31-5))
+
+dec_2018 <- dec_2018 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+
+```{r}
+elec_inyection_2018 <- rbind(nov_2018, dec_2018)
+rm(nov_2018, dec_2018)
+```
+
+
+
+#2019#
+3) January - 2019
+```{r}
+jan_2019 <- final_inyection[3,]
+
+jan_2019 <- jan_2019 %>% mutate(day=1, hour=0) #create the variable day
+jan_2019 <- jan_2019[rep(seq_len(nrow(jan_2019)), each = 31), ] #multiplies each row 30 times
+jan_2019 <- jan_2019 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+jan_2019 <- jan_2019[rep(seq_len(nrow(jan_2019)), each = 24), ] #For each day, add 24 hours
+jan_2019 <- jan_2019 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+jan_2019 <- jan_2019 %>% mutate(elec_inyected = ener_iny/(31-2))
+
+jan_2019 <- jan_2019 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+4) February - 2019
+```{r}
+feb_2019 <- final_inyection[4,]
+
+feb_2019 <- feb_2019 %>% mutate(day=1, hour=0) #create the variable day
+feb_2019 <- feb_2019[rep(seq_len(nrow(feb_2019)), each = 28), ] #multiplies each row 30 times
+feb_2019 <- feb_2019 %>% group_by(year, month, day) %>% mutate(day=1:28) # add days from 1 to 30
+
+feb_2019 <- feb_2019[rep(seq_len(nrow(feb_2019)), each = 24), ] #For each day, add 24 hours
+feb_2019 <- feb_2019 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+feb_2019 <- feb_2019 %>% mutate(elec_inyected =  ener_iny/(28-2))
+
+feb_2019 <- feb_2019 %>% mutate(elec_inyected= elec_inyected/1000) # change from the electricity inyected from KWh to MWh
+```
+
+5) March - 2019
+```{r}
+mar_2019 <- final_inyection[5,]
+
+mar_2019 <- mar_2019 %>% mutate(day=1, hour=0) #create the variable day
+mar_2019 <- mar_2019[rep(seq_len(nrow(mar_2019)), each = 31), ] #multiplies each row 30 times
+mar_2019 <- mar_2019 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+mar_2019 <- mar_2019[rep(seq_len(nrow(mar_2019)), each = 24), ] #For each day, add 24 hours
+mar_2019 <- mar_2019 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+mar_2019 <- mar_2019 %>% mutate(elec_inyected = ener_iny/(31-10))
+
+mar_2019 <- mar_2019 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+
+6) April - 2019 
+```{r}
+apr_2019 <- final_inyection[6,]
+
+apr_2019 <- apr_2019 %>% mutate(day=1, hour=0) #create the variable day
+apr_2019 <- apr_2019[rep(seq_len(nrow(apr_2019)), each = 30), ] #multiplies each row 30 times
+apr_2019 <- apr_2019 %>% group_by(year, month, day) %>% mutate(day=1:30) # add days from 1 to 30
+
+apr_2019 <- apr_2019[rep(seq_len(nrow(apr_2019)), each = 24), ] #For each day, add 24 hours
+apr_2019 <- apr_2019 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+apr_2019 <- apr_2019 %>% mutate(elec_inyected = ener_iny/(30-20))
+
+apr_2019 <- apr_2019 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+7) May - 2019
+```{r}
+may_2019 <- final_inyection[7,]
+
+may_2019 <- may_2019 %>% mutate(day=1, hour=0) #create the variable day
+may_2019 <- may_2019[rep(seq_len(nrow(may_2019)), each = 31), ] #multiplies each row 30 times
+may_2019 <- may_2019 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+may_2019 <- may_2019[rep(seq_len(nrow(may_2019)), each = 24), ] #For each day, add 24 hours
+may_2019 <- may_2019 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+may_2019 <- may_2019 %>% mutate(elec_inyected =  ener_iny/(31-19))
+
+may_2019 <- may_2019 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+8) June - 2019 
+```{r}
+june_2019 <- final_inyection[8,]
+
+june_2019 <- june_2019 %>% mutate(day=1, hour=0) #create the variable day
+june_2019 <- june_2019[rep(seq_len(nrow(june_2019)), each = 30), ] #multiplies each row 30 times
+june_2019 <- june_2019 %>% group_by(year, month, day) %>% mutate(day=1:30) # add days from 1 to 30
+
+june_2019 <- june_2019[rep(seq_len(nrow(june_2019)), each = 24), ] #For each day, add 24 hours
+june_2019 <- june_2019 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+june_2019 <- june_2019 %>% mutate(elec_inyected = ener_iny/(30-18))
+
+june_2019 <- june_2019 %>% mutate(elec_inyected= elec_inyected/1000) #change the electricity inyected from KWh to MWh
+```
+
+9) July - 2019
+```{r}
+july_2019 <- final_inyection[9,]
+
+july_2019 <- july_2019 %>% mutate(day=1, hour=0) #create the variable day
+july_2019 <- july_2019[rep(seq_len(nrow(july_2019)), each = 31), ] #multiplies each row 30 times
+july_2019 <- july_2019 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+july_2019 <- july_2019[rep(seq_len(nrow(july_2019)), each = 24), ] #For each day, add 24 hours
+july_2019 <- july_2019 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+july_2019 <- july_2019 %>% mutate(elec_inyected =  ener_iny/(31-15))
+
+july_2019 <- july_2019 %>% mutate(elec_inyected= elec_inyected/1000) #change the electricity inyected from KWh to MWh
+```
+
+10) August - 2019 
+```{r}
+aug_2019 <- final_inyection[10,]
+
+aug_2019 <- aug_2019 %>% mutate(day=1, hour=0) #create the variable day
+aug_2019 <- aug_2019[rep(seq_len(nrow(aug_2019)), each = 31), ] #multiplies each row 30 times
+aug_2019 <- aug_2019 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+aug_2019 <- aug_2019[rep(seq_len(nrow(aug_2019)), each = 24), ] #For each day, add 24 hours
+aug_2019 <- aug_2019 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+aug_2019 <- aug_2019 %>% mutate(elec_inyected = ener_iny/(31-12))
+
+aug_2019 <- aug_2019 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+11) September - 2019 
+```{r}
+sep_2019 <- final_inyection[11,]
+
+sep_2019 <- sep_2019 %>% mutate(day=1, hour=0) #create the variable day
+sep_2019 <- sep_2019[rep(seq_len(nrow(sep_2019)), each = 30), ] #multiplies each row 30 times
+sep_2019 <- sep_2019 %>% group_by(year, month, day) %>% mutate(day=1:30) # add days from 1 to 30
+
+sep_2019 <- sep_2019[rep(seq_len(nrow(sep_2019)), each = 24), ] #For each day, add 24 hours
+sep_2019 <- sep_2019 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+sep_2019 <- sep_2019 %>% mutate(elec_inyected =  ener_iny/(30-7))
+
+sep_2019 <- sep_2019 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+12) October - 2019 
+```{r}
+oct_2019 <- final_inyection[12,]
+
+oct_2019 <- oct_2019 %>% mutate(day=1, hour=0) #create the variable day
+oct_2019 <- oct_2019[rep(seq_len(nrow(oct_2019)), each = 31), ] #multiplies each row 30 times
+oct_2019 <- oct_2019 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+oct_2019 <- oct_2019[rep(seq_len(nrow(oct_2019)), each = 24), ] #For each day, add 24 hours
+oct_2019 <- oct_2019 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+oct_2019 <- oct_2019 %>% mutate(elec_inyected = ener_iny/(31-12))
+
+oct_2019 <- oct_2019 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+13) November - 2019 
+```{r}
+nov_2019 <- final_inyection[13,]
+
+nov_2019 <- nov_2019 %>% mutate(day=1, hour=0) #create the variable day
+nov_2019 <- nov_2019[rep(seq_len(nrow(nov_2019)), each = 30), ] #multiplies each row 30 times
+nov_2019 <- nov_2019 %>% group_by(year, month, day) %>% mutate(day=1:30) # add days from 1 to 30
+
+nov_2019 <- nov_2019[rep(seq_len(nrow(nov_2019)), each = 24), ] #For each day, add 24 hours
+nov_2019 <- nov_2019 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+nov_2019 <- nov_2019 %>% mutate(elec_inyected =  ener_iny/(30-20))
+
+nov_2019 <- nov_2019 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+14) December - 2019 
+```{r}
+dec_2019 <- final_inyection[14,]
+
+dec_2019 <- dec_2019 %>% mutate(day=1, hour=0) #create the variable day
+dec_2019 <- dec_2019[rep(seq_len(nrow(dec_2019)), each = 31), ] #multiplies each row 30 times
+dec_2019 <- dec_2019 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+dec_2019 <- dec_2019[rep(seq_len(nrow(dec_2019)), each = 24), ] #For each day, add 24 hours
+dec_2019 <- dec_2019 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+dec_2019 <- dec_2019 %>% mutate(elec_inyected = ener_iny/(31-21))
+
+dec_2019 <- dec_2019 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+
+```{r}
+elec_inyection_2019 <- rbind(jan_2019, feb_2019, mar_2019, apr_2019, may_2019, june_2019, july_2019, aug_2019, sep_2019, oct_2019, nov_2019, dec_2019)
+rm(jan_2019, feb_2019, mar_2019, apr_2019, may_2019, june_2019, july_2019, aug_2019, sep_2019, oct_2019, nov_2019, dec_2019)
+```
+
+#2020#
+15) January - 2020 
+```{r}
+jan_2020 <- final_inyection[15,]
+
+jan_2020 <- jan_2020 %>% mutate(day=1, hour=0) #create the variable day
+jan_2020 <- jan_2020[rep(seq_len(nrow(jan_2020)), each = 31), ] #multiplies each row 30 times
+jan_2020 <- jan_2020 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+jan_2020 <- jan_2020[rep(seq_len(nrow(jan_2020)), each = 24), ] #For each day, add 24 hours
+jan_2020 <- jan_2020 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+jan_2020 <- jan_2020 %>% mutate(elec_inyected =  ener_iny/(31-15))
+
+jan_2020 <- jan_2020 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+16) February - 2020
+```{r}
+feb_2020 <- final_inyection[16,]
+
+feb_2020 <- feb_2020 %>% mutate(day=1, hour=0) #create the variable day
+feb_2020 <- feb_2020[rep(seq_len(nrow(feb_2020)), each = 29), ] #multiplies each row 30 times
+feb_2020 <- feb_2020 %>% group_by(year, month, day) %>% mutate(day=1:29) # add days from 1 to 30
+
+feb_2020 <- feb_2020[rep(seq_len(nrow(feb_2020)), each = 24), ] #For each day, add 24 hours
+feb_2020 <- feb_2020 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+feb_2020 <- feb_2020 %>% mutate(elec_inyected = ener_iny/(29-9))
+
+feb_2020 <- feb_2020 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+17) March - 2020 
+```{r}
+mar_2020 <- final_inyection[17,]
+
+mar_2020 <- mar_2020 %>% mutate(day=1, hour=0) #create the variable day
+mar_2020 <- mar_2020[rep(seq_len(nrow(mar_2020)), each = 31), ] #multiplies each row 30 times
+mar_2020 <- mar_2020 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+mar_2020 <- mar_2020[rep(seq_len(nrow(mar_2020)), each = 24), ] #For each day, add 24 hours
+mar_2020 <- mar_2020 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+mar_2020 <- mar_2020 %>% mutate(elec_inyected = ener_iny/(31-9))
+
+mar_2020 <- mar_2020 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+18) April 2020 
+```{r}
+apr_2020 <- final_inyection[18,]
+
+apr_2020 <- apr_2020 %>% mutate(day=1, hour=0) #create the variable day
+apr_2020 <- apr_2020[rep(seq_len(nrow(apr_2020)), each = 30), ] #multiplies each row 30 times
+apr_2020 <- apr_2020 %>% group_by(year, month, day) %>% mutate(day=1:30) # add days from 1 to 30
+
+apr_2020 <- apr_2020[rep(seq_len(nrow(apr_2020)), each = 24), ] #For each day, add 24 hours
+apr_2020 <- apr_2020 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+apr_2020 <- apr_2020 %>% mutate(elec_inyected = ener_iny/(30-23))
+
+apr_2020 <- apr_2020 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+19) May - 2020 
+```{r}
+may_2020 <- final_inyection[19,]
+
+may_2020 <- may_2020 %>% mutate(day=1, hour=0) #create the variable day
+may_2020 <- may_2020[rep(seq_len(nrow(may_2020)), each = 31), ] #multiplies each row 30 times
+may_2020 <- may_2020 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+may_2020 <- may_2020[rep(seq_len(nrow(may_2020)), each = 24), ] #For each day, add 24 hours
+may_2020 <- may_2020 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+may_2020 <- may_2020 %>% mutate(elec_inyected = ener_iny/(31-25))
+
+may_2020 <- may_2020 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+20) June 2020 
+```{r}
+june_2020 <- final_inyection[20,]
+
+june_2020 <- june_2020 %>% mutate(day=1, hour=0) #create the variable day
+june_2020 <- june_2020[rep(seq_len(nrow(june_2020)), each = 30), ] #multiplies each row 30 times
+june_2020 <- june_2020 %>% group_by(year, month, day) %>% mutate(day=1:30) # add days from 1 to 30
+
+june_2020 <- june_2020[rep(seq_len(nrow(june_2020)), each = 24), ] #For each day, add 24 hours
+june_2020 <- june_2020 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+june_2020 <- june_2020 %>% mutate(elec_inyected = ener_iny/(30-17))
+
+june_2020 <- june_2020 %>% mutate(elec_inyected= elec_inyected/1000) #change the electricity inyected from KWh to MWh
+```
+
+
+21) July - 2020 
+```{r}
+july_2020 <- final_inyection[21,]
+
+july_2020 <- july_2020 %>% mutate(day=1, hour=0) #create the variable day
+july_2020 <- july_2020[rep(seq_len(nrow(july_2020)), each = 31), ] #multiplies each row 30 times
+july_2020 <- july_2020 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+july_2020 <- july_2020[rep(seq_len(nrow(july_2020)), each = 24), ] #For each day, add 24 hours
+july_2020 <- july_2020 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+july_2020 <- july_2020 %>% mutate(elec_inyected = ener_iny/(31-14))
+
+july_2020 <- july_2020 %>% mutate(elec_inyected= elec_inyected/1000) #change the electricity inyected from KWh to MWh
+```
+
+22) August - 2020 
+```{r}
+aug_2020 <- final_inyection[22,]
+
+aug_2020 <- aug_2020 %>% mutate(day=1, hour=0) #create the variable day
+aug_2020 <- aug_2020[rep(seq_len(nrow(aug_2020)), each = 31), ] #multiplies each row 30 times
+aug_2020 <- aug_2020 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+aug_2020 <- aug_2020[rep(seq_len(nrow(aug_2020)), each = 24), ] #For each day, add 24 hours
+aug_2020 <- aug_2020 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+aug_2020 <- aug_2020 %>% mutate(elec_inyected = ener_iny/(31-21))
+
+aug_2020 <- aug_2020 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+23) September 2020 
+```{r}
+sep_2020 <- final_inyection[23,]
+
+sep_2020 <- sep_2020 %>% mutate(day=1, hour=0) #create the variable day
+sep_2020 <- sep_2020[rep(seq_len(nrow(sep_2020)), each = 30), ] #multiplies each row 30 times
+sep_2020 <- sep_2020 %>% group_by(year, month, day) %>% mutate(day=1:30) # add days from 1 to 30
+
+sep_2020 <- sep_2020[rep(seq_len(nrow(sep_2020)), each = 24), ] #For each day, add 24 hours
+sep_2020 <- sep_2020 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+sep_2020 <- sep_2020 %>% mutate(elec_inyected =  ener_iny/(30-24))
+
+sep_2020 <- sep_2020 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+24) October - 2020 
+```{r}
+oct_2020 <- final_inyection[24,]
+
+oct_2020 <- oct_2020 %>% mutate(day=1, hour=0) #create the variable day
+oct_2020 <- oct_2020[rep(seq_len(nrow(oct_2020)), each = 31), ] #multiplies each row 30 times
+oct_2020 <- oct_2020 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+oct_2020 <- oct_2020[rep(seq_len(nrow(oct_2020)), each = 24), ] #For each day, add 24 hours
+oct_2020 <- oct_2020 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+oct_2020 <- oct_2020 %>% mutate(elec_inyected = ener_iny/(31-12))
+
+oct_2020 <- oct_2020 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+25) November 2020 
+```{r}
+nov_2020 <- final_inyection[25,]
+
+nov_2020 <- nov_2020 %>% mutate(day=1, hour=0) #create the variable day
+nov_2020 <- nov_2020[rep(seq_len(nrow(nov_2020)), each = 30), ] #multiplies each row 30 times
+nov_2020 <- nov_2020 %>% group_by(year, month, day) %>% mutate(day=1:30) # add days from 1 to 30
+
+nov_2020 <- nov_2020[rep(seq_len(nrow(nov_2020)), each = 24), ] #For each day, add 24 hours
+nov_2020 <- nov_2020 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+nov_2020 <- nov_2020 %>% mutate(elec_inyected =  ener_iny/(30-3))
+
+nov_2020 <- nov_2020 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+26) December - 2020 
+```{r}
+dec_2020 <- final_inyection[26,]
+
+dec_2020 <- dec_2020 %>% mutate(day=1, hour=0) #create the variable day
+dec_2020 <- dec_2020[rep(seq_len(nrow(dec_2020)), each = 31), ] #multiplies each row 30 times
+dec_2020 <- dec_2020 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+dec_2020 <- dec_2020[rep(seq_len(nrow(dec_2020)), each = 24), ] #For each day, add 24 hours
+dec_2020 <- dec_2020 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+dec_2020 <- dec_2020 %>% mutate(elec_inyected = ener_iny/(31-2))
+
+dec_2020 <- dec_2020 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+```{r}
+elec_inyection_2020 <- rbind(jan_2020, feb_2020, mar_2020, apr_2020, may_2020, june_2020, july_2020, aug_2020, sep_2020, oct_2020, nov_2020, dec_2020)
+rm(jan_2020, feb_2020, mar_2020, apr_2020, may_2020, june_2020, july_2020, aug_2020, sep_2020, oct_2020, nov_2020, dec_2020)
+```
+
+#2021#
+27) January - 2021 
+```{r}
+jan_2021 <- final_inyection[27,]
+
+jan_2021 <- jan_2021 %>% mutate(day=1, hour=0) #create the variable day
+jan_2021 <- jan_2021[rep(seq_len(nrow(jan_2021)), each = 31), ] #multiplies each row 30 times
+jan_2021 <- jan_2021 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+jan_2021 <- jan_2021[rep(seq_len(nrow(jan_2021)), each = 24), ] #For each day, add 24 hours
+jan_2021 <- jan_2021 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+jan_2021 <- jan_2021 %>% mutate(elec_inyected =  ener_iny/(31-5))
+
+jan_2021 <- jan_2021 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+28) February - 2021
+```{r}
+feb_2021 <- final_inyection[28,]
+
+feb_2021 <- feb_2021 %>% mutate(day=1, hour=0) #create the variable day
+feb_2021 <- feb_2021[rep(seq_len(nrow(feb_2021)), each = 28), ] #multiplies each row 30 times
+feb_2021 <- feb_2021 %>% group_by(year, month, day) %>% mutate(day=1:28) # add days from 1 to 30
+
+feb_2021 <- feb_2021[rep(seq_len(nrow(feb_2021)), each = 24), ] #For each day, add 24 hours
+feb_2021 <- feb_2021 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+feb_2021 <- feb_2021 %>% mutate(elec_inyected =  ener_iny/(28-9))
+
+feb_2021 <- feb_2021 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+29) March - 2021 
+```{r}
+mar_2021 <- final_inyection[29,]
+
+mar_2021 <- mar_2021 %>% mutate(day=1, hour=0) #create the variable day
+mar_2021 <- mar_2021[rep(seq_len(nrow(mar_2021)), each = 31), ] #multiplies each row 30 times
+mar_2021 <- mar_2021 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+mar_2021 <- mar_2021[rep(seq_len(nrow(mar_2021)), each = 24), ] #For each day, add 24 hours
+mar_2021 <- mar_2021 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+mar_2021 <- mar_2021 %>% mutate(elec_inyected =  ener_iny/31)
+
+mar_2021 <- mar_2021 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+30) April 2021 
+```{r}
+apr_2021 <- final_inyection[30,]
+
+apr_2021 <- apr_2021 %>% mutate(day=1, hour=0) #create the variable day
+apr_2021 <- apr_2021[rep(seq_len(nrow(apr_2021)), each = 30), ] #multiplies each row 30 times
+apr_2021 <- apr_2021 %>% group_by(year, month, day) %>% mutate(day=1:30) # add days from 1 to 30
+
+apr_2021 <- apr_2021[rep(seq_len(nrow(apr_2021)), each = 24), ] #For each day, add 24 hours
+apr_2021 <- apr_2021 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+apr_2021 <- apr_2021 %>% mutate(elec_inyected =  ener_iny/(30-7))
+
+apr_2021 <- apr_2021 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+31) May - 2021 
+```{r}
+may_2021 <- final_inyection[31,]
+
+may_2021 <- may_2021 %>% mutate(day=1, hour=0) #create the variable day
+may_2021 <- may_2021[rep(seq_len(nrow(may_2021)), each = 31), ] #multiplies each row 30 times
+may_2021 <- may_2021 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+may_2021 <- may_2021[rep(seq_len(nrow(may_2021)), each = 24), ] #For each day, add 24 hours
+may_2021 <- may_2021 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+may_2021 <- may_2021 %>% mutate(elec_inyected =  ener_iny/(31-4))
+
+may_2021 <- may_2021 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+32) June 2021 
+```{r}
+june_2021 <- final_inyection[32,]
+
+june_2021 <- june_2021 %>% mutate(day=1, hour=0) #create the variable day
+june_2021 <- june_2021[rep(seq_len(nrow(june_2021)), each = 30), ] #multiplies each row 30 times
+june_2021 <- june_2021 %>% group_by(year, month, day) %>% mutate(day=1:30) # add days from 1 to 30
+
+june_2021 <- june_2021[rep(seq_len(nrow(june_2021)), each = 24), ] #For each day, add 24 hours
+june_2021 <- june_2021 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+june_2021 <- june_2021 %>% mutate(elec_inyected =  ener_iny/(30-7))
+
+june_2021 <- june_2021 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+
+33) July - 2021 
+```{r}
+july_2021 <- final_inyection[33,]
+
+july_2021 <- july_2021 %>% mutate(day=1, hour=0) #create the variable day
+july_2021 <- july_2021[rep(seq_len(nrow(july_2021)), each = 31), ] #multiplies each row 30 times
+july_2021 <- july_2021 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+july_2021 <- july_2021[rep(seq_len(nrow(july_2021)), each = 24), ] #For each day, add 24 hours
+july_2021 <- july_2021 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+july_2021 <- july_2021 %>% mutate(elec_inyected =  ener_iny/(31-7))
+
+july_2021 <- july_2021 %>% mutate(elec_inyected= elec_inyected/1000) #change the electricity inyected from KWh to MWh
+```
+
+34) August - 2021 
+```{r}
+aug_2021 <- final_inyection[34,]
+
+aug_2021 <- aug_2021 %>% mutate(day=1, hour=0) #create the variable day
+aug_2021 <- aug_2021[rep(seq_len(nrow(aug_2021)), each = 31), ] #multiplies each row 30 times
+aug_2021 <- aug_2021 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+aug_2021 <- aug_2021[rep(seq_len(nrow(aug_2021)), each = 24), ] #For each day, add 24 hours
+aug_2021 <- aug_2021 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+aug_2021 <- aug_2021 %>% mutate(elec_inyected = ener_iny/31)
+
+aug_2021 <- aug_2021 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+35) September 2021 
+```{r}
+sep_2021 <- final_inyection[35,]
+
+sep_2021 <- sep_2021 %>% mutate(day=1, hour=0) #create the variable day
+sep_2021 <- sep_2021[rep(seq_len(nrow(sep_2021)), each = 30), ] #multiplies each row 30 times
+sep_2021 <- sep_2021 %>% group_by(year, month, day) %>% mutate(day=1:30) # add days from 1 to 30
+
+sep_2021 <- sep_2021[rep(seq_len(nrow(sep_2021)), each = 24), ] #For each day, add 24 hours
+sep_2021 <- sep_2021 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+sep_2021 <- sep_2021 %>% mutate(elec_inyected =  ener_iny/30)
+
+sep_2021 <- sep_2021 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+36) October - 2021 
+```{r}
+oct_2021 <- final_inyection[36,]
+
+oct_2021 <- oct_2021 %>% mutate(day=1, hour=0) #create the variable day
+oct_2021 <- oct_2021[rep(seq_len(nrow(oct_2021)), each = 31), ] #multiplies each row 30 times
+oct_2021 <- oct_2021 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+oct_2021 <- oct_2021[rep(seq_len(nrow(oct_2021)), each = 24), ] #For each day, add 24 hours
+oct_2021 <- oct_2021 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+oct_2021 <- oct_2021 %>% mutate(elec_inyected =  ener_iny/31)
+
+oct_2021 <- oct_2021 %>% mutate(elec_inyected= elec_inyected/1000) # changefrom the electricity inyected from KWh to MWh
+```
+
+37) November 2021 
+```{r}
+nov_2021 <- final_inyection[37,]
+
+nov_2021 <- nov_2021 %>% mutate(day=1, hour=0) #create the variable day
+nov_2021 <- nov_2021[rep(seq_len(nrow(nov_2021)), each = 30), ] #multiplies each row 30 times
+nov_2021 <- nov_2021 %>% group_by(year, month, day) %>% mutate(day=1:30) # add days from 1 to 30
+
+nov_2021 <- nov_2021[rep(seq_len(nrow(nov_2021)), each = 24), ] #For each day, add 24 hours
+nov_2021 <- nov_2021 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+nov_2021 <- nov_2021 %>% mutate(elec_inyected =  ener_iny/30)
+
+nov_2021 <- nov_2021 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+38) December - 2021 
+```{r}
+dec_2021 <- final_inyection[38,]
+
+dec_2021 <- dec_2021 %>% mutate(day=1, hour=0) #create the variable day
+dec_2021 <- dec_2021[rep(seq_len(nrow(dec_2021)), each = 31), ] #multiplies each row 30 times
+dec_2021 <- dec_2021 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+dec_2021 <- dec_2021[rep(seq_len(nrow(dec_2021)), each = 24), ] #For each day, add 24 hours
+dec_2021 <- dec_2021 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+dec_2021 <- dec_2021 %>% mutate(elec_inyected =  ener_iny/31)
+
+dec_2021 <- dec_2021 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+```{r}
+elec_inyection_2021 <- rbind(jan_2021, feb_2021, mar_2021, apr_2021, may_2021, june_2021, july_2021, aug_2021, sep_2021, oct_2021, nov_2021, dec_2021)
+rm(jan_2021, feb_2021, mar_2021, apr_2021, may_2021, june_2021, july_2021, aug_2021, sep_2021, oct_2021, nov_2021, dec_2021)
+```
+
+#2022#
+39) January - 2022
+```{r}
+jan_2022 <- final_inyection[39,]
+
+jan_2022 <- jan_2022 %>% mutate(day=1, hour=0) #create the variable day
+jan_2022 <- jan_2022[rep(seq_len(nrow(jan_2022)), each = 31), ] #multiplies each row 30 times
+jan_2022 <- jan_2022 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+jan_2022 <- jan_2022[rep(seq_len(nrow(jan_2022)), each = 24), ] #For each day, add 24 hours
+jan_2022 <- jan_2022 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+jan_2022 <- jan_2022 %>% mutate(elec_inyected = ener_iny/31)
+
+jan_2022 <- jan_2022 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+40) February - 2022
+```{r}
+feb_2022 <- final_inyection[40,]
+
+feb_2022 <- feb_2022 %>% mutate(day=1, hour=0) #create the variable day
+feb_2022 <- feb_2022[rep(seq_len(nrow(feb_2022)), each = 28), ] #multiplies each row 30 times
+feb_2022 <- feb_2022 %>% group_by(year, month, day) %>% mutate(day=1:28) # add days from 1 to 30
+
+feb_2022 <- feb_2022[rep(seq_len(nrow(feb_2022)), each = 24), ] #For each day, add 24 hours
+feb_2022 <- feb_2022 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+feb_2022 <- feb_2022 %>% mutate(elec_inyected =  ener_iny/28)
+
+feb_2022 <- feb_2022 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+41) March - 2022
+```{r}
+mar_2022 <- final_inyection[41,]
+
+mar_2022 <- mar_2022 %>% mutate(day=1, hour=0) #create the variable day
+mar_2022 <- mar_2022[rep(seq_len(nrow(mar_2022)), each = 31), ] #multiplies each row 30 times
+mar_2022 <- mar_2022 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+mar_2022 <- mar_2022[rep(seq_len(nrow(mar_2022)), each = 24), ] #For each day, add 24 hours
+mar_2022 <- mar_2022 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+mar_2022 <- mar_2022 %>% mutate(elec_inyected =  ener_iny/(31-3))
+
+mar_2022 <- mar_2022 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+42) April 2022 
+```{r}
+apr_2022 <- final_inyection[42,]
+
+apr_2022 <- apr_2022 %>% mutate(day=1, hour=0) #create the variable day
+apr_2022 <- apr_2022[rep(seq_len(nrow(apr_2022)), each = 30), ] #multiplies each row 30 times
+apr_2022 <- apr_2022 %>% group_by(year, month, day) %>% mutate(day=1:30) # add days from 1 to 30
+
+apr_2022 <- apr_2022[rep(seq_len(nrow(apr_2022)), each = 24), ] #For each day, add 24 hours
+apr_2022 <- apr_2022 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+apr_2022 <- apr_2022 %>% mutate(elec_inyected =  ener_iny/(30-17))
+
+apr_2022 <- apr_2022 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+43) May - 2022 
+```{r}
+may_2022 <- final_inyection[43,]
+
+may_2022 <- may_2022 %>% mutate(day=1, hour=0) #create the variable day
+may_2022 <- may_2022[rep(seq_len(nrow(may_2022)), each = 31), ] #multiplies each row 30 times
+may_2022 <- may_2022 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+may_2022 <- may_2022[rep(seq_len(nrow(may_2022)), each = 24), ] #For each day, add 24 hours
+may_2022 <- may_2022 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+may_2022 <- may_2022 %>% mutate(elec_inyected =  ener_iny/(31-11))
+
+may_2022 <- may_2022 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+44) June 2022 
+```{r}
+june_2022 <- final_inyection[44,]
+
+june_2022 <- june_2022 %>% mutate(day=1, hour=0) #create the variable day
+june_2022 <- june_2022[rep(seq_len(nrow(june_2022)), each = 30), ] #multiplies each row 30 times
+june_2022 <- june_2022 %>% group_by(year, month, day) %>% mutate(day=1:30) # add days from 1 to 30
+
+june_2022 <- june_2022[rep(seq_len(nrow(june_2022)), each = 24), ] #For each day, add 24 hours
+june_2022 <- june_2022 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+june_2022 <- june_2022 %>% mutate(elec_inyected =  ener_iny/(30-5))
+
+june_2022 <- june_2022 %>% mutate(elec_inyected= elec_inyected/1000) #change the electricity inyected from KWh to MWh
+```
+
+
+45) July - 2022 
+```{r}
+july_2022 <- final_inyection[45,]
+
+july_2022 <- july_2022 %>% mutate(day=1, hour=0) #create the variable day
+july_2022 <- july_2022[rep(seq_len(nrow(july_2022)), each = 31), ] #multiplies each row 30 times
+july_2022 <- july_2022 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+july_2022 <- july_2022[rep(seq_len(nrow(july_2022)), each = 24), ] #For each day, add 24 hours
+july_2022 <- july_2022 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+july_2022 <- july_2022 %>% mutate(elec_inyected =  ener_iny/(31-12))
+
+july_2022 <- july_2022 %>% mutate(elec_inyected= elec_inyected/1000) #change  the electricity inyected from KWh to MWh
+```
+
+46) August - 2022 
+```{r}
+aug_2022 <- final_inyection[46,]
+
+aug_2022 <- aug_2022 %>% mutate(day=1, hour=0) #create the variable day
+aug_2022 <- aug_2022[rep(seq_len(nrow(aug_2022)), each = 31), ] #multiplies each row 30 times
+aug_2022 <- aug_2022 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+aug_2022 <- aug_2022[rep(seq_len(nrow(aug_2022)), each = 24), ] #For each day, add 24 hours
+aug_2022 <- aug_2022 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+aug_2022 <- aug_2022 %>% mutate(elec_inyected = ener_iny/(31-14))
+
+aug_2022 <- aug_2022 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+```{r}
+elec_inyection_2022 <- rbind(jan_2022, feb_2022, mar_2022, apr_2022, may_2022, june_2022, july_2022, aug_2022)
+rm(jan_2022, feb_2022, mar_2022, apr_2022, may_2022, june_2022, july_2022, aug_2022)
+```
+
+append them and save it
+```{r}
+final_elec_inyected <- rbind(elec_inyection_2018, elec_inyection_2019, elec_inyection_2020, elec_inyection_2021, elec_inyection_2022)
+
+save(final_elec_inyected, file= "C:/Users/natal/OneDrive - University of Edinburgh/Net_metering_UY/Final_project/Gurobi/final_elec_inyected_normal.RData")
+```
+
+
+
+#Third analysis:
+#This is to do the graph of microgeneration production, 
+
+
+```{r}
+rm(list=ls())
+library(dplyr)
+library(readxl)
+```
+
+
+#second#
+Use the inyection data of electricity into the grid:
+1) transform the data from monthly to hourly, and assume the inyected data is uniformy distributed from 8 am to 5 pm
+```{r}
+load("C:/Users/natal/OneDrive - University of Edinburgh/Net_metering_UY/Final_project/Gurobi/extrac_data.RData")
+```
+
+Eliminate some variables:
+```{r}
+final_inyection <- final_MG %>% dplyr::select(c(1:17)) %>% dplyr::select(-c(14:15))
+final_inyection <- final_inyection %>% group_by(year, month, day) %>%  summarize(ener_iny=sum(ener_iny, na.rm=TRUE)) # summ all the microgenerators that are inyecting in a specific month
+
+#which days are the electricity injected to the grid bigger than zero: From November 2018 to August 2022
+#only keeps those days
+final_inyection <- final_inyection %>% filter(ener_iny >0)
+
+#convert the data to numeric
+final_inyection$year <- as.numeric(final_inyection$year)
+final_inyection$month <- as.numeric(final_inyection$month)
+final_inyection$day <- as.numeric(final_inyection$day)
+```
+Keep the first row: add it more days and hours
+
+#2018#
+1) First row is November - 2018 
+```{r}
+nov_2018 <- final_inyection[1,]
+
+nov_2018 <- nov_2018 %>% mutate(day=1, hour=0) #create the variable day
+nov_2018 <- nov_2018[rep(seq_len(nrow(nov_2018)), each = 30), ] #multiplies each row 30 times
+nov_2018 <- nov_2018 %>% group_by(year, month, day) %>% mutate(day=1:30) # add days from 1 to 30
+
+nov_2018 <- nov_2018[rep(seq_len(nrow(nov_2018)), each = 24), ] #For each day, add 24 hours
+nov_2018 <- nov_2018 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+#If, the energy inyected is positive, then between 18 pm until 7 am is equal zero, and between 8 am to 17 pm is the electricity inyected/300. 
+#Why 23. The first 23, is to find the electricity inyected by day (eliminating those days which the thermal is equal zero)
+nov_2018 <- nov_2018 %>% mutate(elec_inyected =  ener_iny/30)
+
+nov_2018 <- nov_2018 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+2) December - 2018
+```{r}
+dec_2018 <- final_inyection[2,]
+
+dec_2018 <- dec_2018 %>% mutate(day=1, hour=0) #create the variable day
+dec_2018 <- dec_2018[rep(seq_len(nrow(dec_2018)), each = 31), ] #multiplies each row 30 times
+dec_2018 <- dec_2018 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+dec_2018 <- dec_2018[rep(seq_len(nrow(dec_2018)), each = 24), ] #For each day, add 24 hours
+dec_2018 <- dec_2018 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+dec_2018 <- dec_2018 %>% mutate(elec_inyected =  ener_iny/(31))
+
+dec_2018 <- dec_2018 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+
+```{r}
+elec_inyection_2018 <- rbind(nov_2018, dec_2018)
+rm(nov_2018, dec_2018)
+```
+
+
+
+#2019#
+3) January - 2019
+```{r}
+jan_2019 <- final_inyection[3,]
+
+jan_2019 <- jan_2019 %>% mutate(day=1, hour=0) #create the variable day
+jan_2019 <- jan_2019[rep(seq_len(nrow(jan_2019)), each = 31), ] #multiplies each row 30 times
+jan_2019 <- jan_2019 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+jan_2019 <- jan_2019[rep(seq_len(nrow(jan_2019)), each = 24), ] #For each day, add 24 hours
+jan_2019 <- jan_2019 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+jan_2019 <- jan_2019 %>% mutate(elec_inyected = ener_iny/(31))
+
+jan_2019 <- jan_2019 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+4) February - 2019
+```{r}
+feb_2019 <- final_inyection[4,]
+
+feb_2019 <- feb_2019 %>% mutate(day=1, hour=0) #create the variable day
+feb_2019 <- feb_2019[rep(seq_len(nrow(feb_2019)), each = 28), ] #multiplies each row 30 times
+feb_2019 <- feb_2019 %>% group_by(year, month, day) %>% mutate(day=1:28) # add days from 1 to 30
+
+feb_2019 <- feb_2019[rep(seq_len(nrow(feb_2019)), each = 24), ] #For each day, add 24 hours
+feb_2019 <- feb_2019 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+feb_2019 <- feb_2019 %>% mutate(elec_inyected =  ener_iny/(28))
+
+feb_2019 <- feb_2019 %>% mutate(elec_inyected= elec_inyected/1000) # change from the electricity inyected from KWh to MWh
+```
+
+5) March - 2019
+```{r}
+mar_2019 <- final_inyection[5,]
+
+mar_2019 <- mar_2019 %>% mutate(day=1, hour=0) #create the variable day
+mar_2019 <- mar_2019[rep(seq_len(nrow(mar_2019)), each = 31), ] #multiplies each row 30 times
+mar_2019 <- mar_2019 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+mar_2019 <- mar_2019[rep(seq_len(nrow(mar_2019)), each = 24), ] #For each day, add 24 hours
+mar_2019 <- mar_2019 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+mar_2019 <- mar_2019 %>% mutate(elec_inyected = ener_iny/(31))
+
+mar_2019 <- mar_2019 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+
+6) April - 2019 
+```{r}
+apr_2019 <- final_inyection[6,]
+
+apr_2019 <- apr_2019 %>% mutate(day=1, hour=0) #create the variable day
+apr_2019 <- apr_2019[rep(seq_len(nrow(apr_2019)), each = 30), ] #multiplies each row 30 times
+apr_2019 <- apr_2019 %>% group_by(year, month, day) %>% mutate(day=1:30) # add days from 1 to 30
+
+apr_2019 <- apr_2019[rep(seq_len(nrow(apr_2019)), each = 24), ] #For each day, add 24 hours
+apr_2019 <- apr_2019 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+apr_2019 <- apr_2019 %>% mutate(elec_inyected = ener_iny/(30))
+
+apr_2019 <- apr_2019 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+7) May - 2019
+```{r}
+may_2019 <- final_inyection[7,]
+
+may_2019 <- may_2019 %>% mutate(day=1, hour=0) #create the variable day
+may_2019 <- may_2019[rep(seq_len(nrow(may_2019)), each = 31), ] #multiplies each row 30 times
+may_2019 <- may_2019 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+may_2019 <- may_2019[rep(seq_len(nrow(may_2019)), each = 24), ] #For each day, add 24 hours
+may_2019 <- may_2019 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+may_2019 <- may_2019 %>% mutate(elec_inyected =  ener_iny/(31))
+
+may_2019 <- may_2019 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+8) June - 2019 
+```{r}
+june_2019 <- final_inyection[8,]
+
+june_2019 <- june_2019 %>% mutate(day=1, hour=0) #create the variable day
+june_2019 <- june_2019[rep(seq_len(nrow(june_2019)), each = 30), ] #multiplies each row 30 times
+june_2019 <- june_2019 %>% group_by(year, month, day) %>% mutate(day=1:30) # add days from 1 to 30
+
+june_2019 <- june_2019[rep(seq_len(nrow(june_2019)), each = 24), ] #For each day, add 24 hours
+june_2019 <- june_2019 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+june_2019 <- june_2019 %>% mutate(elec_inyected = ener_iny/(30))
+
+june_2019 <- june_2019 %>% mutate(elec_inyected= elec_inyected/1000) #change the electricity inyected from KWh to MWh
+```
+
+9) July - 2019
+```{r}
+july_2019 <- final_inyection[9,]
+
+july_2019 <- july_2019 %>% mutate(day=1, hour=0) #create the variable day
+july_2019 <- july_2019[rep(seq_len(nrow(july_2019)), each = 31), ] #multiplies each row 30 times
+july_2019 <- july_2019 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+july_2019 <- july_2019[rep(seq_len(nrow(july_2019)), each = 24), ] #For each day, add 24 hours
+july_2019 <- july_2019 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+july_2019 <- july_2019 %>% mutate(elec_inyected =  ener_iny/(31))
+
+july_2019 <- july_2019 %>% mutate(elec_inyected= elec_inyected/1000) #change the electricity inyected from KWh to MWh
+```
+
+10) August - 2019 
+```{r}
+aug_2019 <- final_inyection[10,]
+
+aug_2019 <- aug_2019 %>% mutate(day=1, hour=0) #create the variable day
+aug_2019 <- aug_2019[rep(seq_len(nrow(aug_2019)), each = 31), ] #multiplies each row 30 times
+aug_2019 <- aug_2019 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+aug_2019 <- aug_2019[rep(seq_len(nrow(aug_2019)), each = 24), ] #For each day, add 24 hours
+aug_2019 <- aug_2019 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+aug_2019 <- aug_2019 %>% mutate(elec_inyected = ener_iny/(31))
+
+aug_2019 <- aug_2019 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+11) September - 2019 
+```{r}
+sep_2019 <- final_inyection[11,]
+
+sep_2019 <- sep_2019 %>% mutate(day=1, hour=0) #create the variable day
+sep_2019 <- sep_2019[rep(seq_len(nrow(sep_2019)), each = 30), ] #multiplies each row 30 times
+sep_2019 <- sep_2019 %>% group_by(year, month, day) %>% mutate(day=1:30) # add days from 1 to 30
+
+sep_2019 <- sep_2019[rep(seq_len(nrow(sep_2019)), each = 24), ] #For each day, add 24 hours
+sep_2019 <- sep_2019 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+sep_2019 <- sep_2019 %>% mutate(elec_inyected =  ener_iny/(30))
+
+sep_2019 <- sep_2019 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+12) October - 2019 
+```{r}
+oct_2019 <- final_inyection[12,]
+
+oct_2019 <- oct_2019 %>% mutate(day=1, hour=0) #create the variable day
+oct_2019 <- oct_2019[rep(seq_len(nrow(oct_2019)), each = 31), ] #multiplies each row 30 times
+oct_2019 <- oct_2019 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+oct_2019 <- oct_2019[rep(seq_len(nrow(oct_2019)), each = 24), ] #For each day, add 24 hours
+oct_2019 <- oct_2019 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+oct_2019 <- oct_2019 %>% mutate(elec_inyected = ener_iny/(31))
+
+oct_2019 <- oct_2019 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+13) November - 2019 
+```{r}
+nov_2019 <- final_inyection[13,]
+
+nov_2019 <- nov_2019 %>% mutate(day=1, hour=0) #create the variable day
+nov_2019 <- nov_2019[rep(seq_len(nrow(nov_2019)), each = 30), ] #multiplies each row 30 times
+nov_2019 <- nov_2019 %>% group_by(year, month, day) %>% mutate(day=1:30) # add days from 1 to 30
+
+nov_2019 <- nov_2019[rep(seq_len(nrow(nov_2019)), each = 24), ] #For each day, add 24 hours
+nov_2019 <- nov_2019 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+nov_2019 <- nov_2019 %>% mutate(elec_inyected =  ener_iny/(30))
+
+nov_2019 <- nov_2019 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+14) December - 2019 
+```{r}
+dec_2019 <- final_inyection[14,]
+
+dec_2019 <- dec_2019 %>% mutate(day=1, hour=0) #create the variable day
+dec_2019 <- dec_2019[rep(seq_len(nrow(dec_2019)), each = 31), ] #multiplies each row 30 times
+dec_2019 <- dec_2019 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+dec_2019 <- dec_2019[rep(seq_len(nrow(dec_2019)), each = 24), ] #For each day, add 24 hours
+dec_2019 <- dec_2019 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+dec_2019 <- dec_2019 %>% mutate(elec_inyected = ener_iny/(31))
+
+dec_2019 <- dec_2019 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+
+```{r}
+elec_inyection_2019 <- rbind(jan_2019, feb_2019, mar_2019, apr_2019, may_2019, june_2019, july_2019, aug_2019, sep_2019, oct_2019, nov_2019, dec_2019)
+rm(jan_2019, feb_2019, mar_2019, apr_2019, may_2019, june_2019, july_2019, aug_2019, sep_2019, oct_2019, nov_2019, dec_2019)
+```
+
+#2020#
+15) January - 2020 
+```{r}
+jan_2020 <- final_inyection[15,]
+
+jan_2020 <- jan_2020 %>% mutate(day=1, hour=0) #create the variable day
+jan_2020 <- jan_2020[rep(seq_len(nrow(jan_2020)), each = 31), ] #multiplies each row 30 times
+jan_2020 <- jan_2020 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+jan_2020 <- jan_2020[rep(seq_len(nrow(jan_2020)), each = 24), ] #For each day, add 24 hours
+jan_2020 <- jan_2020 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+jan_2020 <- jan_2020 %>% mutate(elec_inyected =  ener_iny/(31))
+
+jan_2020 <- jan_2020 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+16) February - 2020
+```{r}
+feb_2020 <- final_inyection[16,]
+
+feb_2020 <- feb_2020 %>% mutate(day=1, hour=0) #create the variable day
+feb_2020 <- feb_2020[rep(seq_len(nrow(feb_2020)), each = 29), ] #multiplies each row 30 times
+feb_2020 <- feb_2020 %>% group_by(year, month, day) %>% mutate(day=1:29) # add days from 1 to 30
+
+feb_2020 <- feb_2020[rep(seq_len(nrow(feb_2020)), each = 24), ] #For each day, add 24 hours
+feb_2020 <- feb_2020 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+feb_2020 <- feb_2020 %>% mutate(elec_inyected = ener_iny/(29))
+
+feb_2020 <- feb_2020 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+17) March - 2020 
+```{r}
+mar_2020 <- final_inyection[17,]
+
+mar_2020 <- mar_2020 %>% mutate(day=1, hour=0) #create the variable day
+mar_2020 <- mar_2020[rep(seq_len(nrow(mar_2020)), each = 31), ] #multiplies each row 30 times
+mar_2020 <- mar_2020 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+mar_2020 <- mar_2020[rep(seq_len(nrow(mar_2020)), each = 24), ] #For each day, add 24 hours
+mar_2020 <- mar_2020 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+mar_2020 <- mar_2020 %>% mutate(elec_inyected = ener_iny/(31))
+
+mar_2020 <- mar_2020 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+18) April 2020 
+```{r}
+apr_2020 <- final_inyection[18,]
+
+apr_2020 <- apr_2020 %>% mutate(day=1, hour=0) #create the variable day
+apr_2020 <- apr_2020[rep(seq_len(nrow(apr_2020)), each = 30), ] #multiplies each row 30 times
+apr_2020 <- apr_2020 %>% group_by(year, month, day) %>% mutate(day=1:30) # add days from 1 to 30
+
+apr_2020 <- apr_2020[rep(seq_len(nrow(apr_2020)), each = 24), ] #For each day, add 24 hours
+apr_2020 <- apr_2020 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+apr_2020 <- apr_2020 %>% mutate(elec_inyected = ener_iny/(30))
+
+apr_2020 <- apr_2020 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+19) May - 2020 
+```{r}
+may_2020 <- final_inyection[19,]
+
+may_2020 <- may_2020 %>% mutate(day=1, hour=0) #create the variable day
+may_2020 <- may_2020[rep(seq_len(nrow(may_2020)), each = 31), ] #multiplies each row 30 times
+may_2020 <- may_2020 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+may_2020 <- may_2020[rep(seq_len(nrow(may_2020)), each = 24), ] #For each day, add 24 hours
+may_2020 <- may_2020 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+may_2020 <- may_2020 %>% mutate(elec_inyected = ener_iny/(31))
+
+may_2020 <- may_2020 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+20) June 2020 
+```{r}
+june_2020 <- final_inyection[20,]
+
+june_2020 <- june_2020 %>% mutate(day=1, hour=0) #create the variable day
+june_2020 <- june_2020[rep(seq_len(nrow(june_2020)), each = 30), ] #multiplies each row 30 times
+june_2020 <- june_2020 %>% group_by(year, month, day) %>% mutate(day=1:30) # add days from 1 to 30
+
+june_2020 <- june_2020[rep(seq_len(nrow(june_2020)), each = 24), ] #For each day, add 24 hours
+june_2020 <- june_2020 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+june_2020 <- june_2020 %>% mutate(elec_inyected = ener_iny/(30))
+
+june_2020 <- june_2020 %>% mutate(elec_inyected= elec_inyected/1000) #change the electricity inyected from KWh to MWh
+```
+
+
+21) July - 2020 
+```{r}
+july_2020 <- final_inyection[21,]
+
+july_2020 <- july_2020 %>% mutate(day=1, hour=0) #create the variable day
+july_2020 <- july_2020[rep(seq_len(nrow(july_2020)), each = 31), ] #multiplies each row 30 times
+july_2020 <- july_2020 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+july_2020 <- july_2020[rep(seq_len(nrow(july_2020)), each = 24), ] #For each day, add 24 hours
+july_2020 <- july_2020 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+july_2020 <- july_2020 %>% mutate(elec_inyected = ener_iny/(31))
+
+july_2020 <- july_2020 %>% mutate(elec_inyected= elec_inyected/1000) #change the electricity inyected from KWh to MWh
+```
+
+22) August - 2020 
+```{r}
+aug_2020 <- final_inyection[22,]
+
+aug_2020 <- aug_2020 %>% mutate(day=1, hour=0) #create the variable day
+aug_2020 <- aug_2020[rep(seq_len(nrow(aug_2020)), each = 31), ] #multiplies each row 30 times
+aug_2020 <- aug_2020 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+aug_2020 <- aug_2020[rep(seq_len(nrow(aug_2020)), each = 24), ] #For each day, add 24 hours
+aug_2020 <- aug_2020 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+aug_2020 <- aug_2020 %>% mutate(elec_inyected = ener_iny/(31))
+
+aug_2020 <- aug_2020 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+23) September 2020 
+```{r}
+sep_2020 <- final_inyection[23,]
+
+sep_2020 <- sep_2020 %>% mutate(day=1, hour=0) #create the variable day
+sep_2020 <- sep_2020[rep(seq_len(nrow(sep_2020)), each = 30), ] #multiplies each row 30 times
+sep_2020 <- sep_2020 %>% group_by(year, month, day) %>% mutate(day=1:30) # add days from 1 to 30
+
+sep_2020 <- sep_2020[rep(seq_len(nrow(sep_2020)), each = 24), ] #For each day, add 24 hours
+sep_2020 <- sep_2020 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+sep_2020 <- sep_2020 %>% mutate(elec_inyected =  ener_iny/(30))
+
+sep_2020 <- sep_2020 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+24) October - 2020 
+```{r}
+oct_2020 <- final_inyection[24,]
+
+oct_2020 <- oct_2020 %>% mutate(day=1, hour=0) #create the variable day
+oct_2020 <- oct_2020[rep(seq_len(nrow(oct_2020)), each = 31), ] #multiplies each row 30 times
+oct_2020 <- oct_2020 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+oct_2020 <- oct_2020[rep(seq_len(nrow(oct_2020)), each = 24), ] #For each day, add 24 hours
+oct_2020 <- oct_2020 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+oct_2020 <- oct_2020 %>% mutate(elec_inyected = ener_iny/(31))
+
+oct_2020 <- oct_2020 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+25) November 2020 
+```{r}
+nov_2020 <- final_inyection[25,]
+
+nov_2020 <- nov_2020 %>% mutate(day=1, hour=0) #create the variable day
+nov_2020 <- nov_2020[rep(seq_len(nrow(nov_2020)), each = 30), ] #multiplies each row 30 times
+nov_2020 <- nov_2020 %>% group_by(year, month, day) %>% mutate(day=1:30) # add days from 1 to 30
+
+nov_2020 <- nov_2020[rep(seq_len(nrow(nov_2020)), each = 24), ] #For each day, add 24 hours
+nov_2020 <- nov_2020 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+nov_2020 <- nov_2020 %>% mutate(elec_inyected =  ener_iny/(30))
+
+nov_2020 <- nov_2020 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+26) December - 2020 
+```{r}
+dec_2020 <- final_inyection[26,]
+
+dec_2020 <- dec_2020 %>% mutate(day=1, hour=0) #create the variable day
+dec_2020 <- dec_2020[rep(seq_len(nrow(dec_2020)), each = 31), ] #multiplies each row 30 times
+dec_2020 <- dec_2020 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+dec_2020 <- dec_2020[rep(seq_len(nrow(dec_2020)), each = 24), ] #For each day, add 24 hours
+dec_2020 <- dec_2020 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+dec_2020 <- dec_2020 %>% mutate(elec_inyected = ener_iny/(31))
+
+dec_2020 <- dec_2020 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+```{r}
+elec_inyection_2020 <- rbind(jan_2020, feb_2020, mar_2020, apr_2020, may_2020, june_2020, july_2020, aug_2020, sep_2020, oct_2020, nov_2020, dec_2020)
+rm(jan_2020, feb_2020, mar_2020, apr_2020, may_2020, june_2020, july_2020, aug_2020, sep_2020, oct_2020, nov_2020, dec_2020)
+```
+
+#2021#
+27) January - 2021 
+```{r}
+jan_2021 <- final_inyection[27,]
+
+jan_2021 <- jan_2021 %>% mutate(day=1, hour=0) #create the variable day
+jan_2021 <- jan_2021[rep(seq_len(nrow(jan_2021)), each = 31), ] #multiplies each row 30 times
+jan_2021 <- jan_2021 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+jan_2021 <- jan_2021[rep(seq_len(nrow(jan_2021)), each = 24), ] #For each day, add 24 hours
+jan_2021 <- jan_2021 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+jan_2021 <- jan_2021 %>% mutate(elec_inyected =  ener_iny/(31))
+
+jan_2021 <- jan_2021 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+28) February - 2021
+```{r}
+feb_2021 <- final_inyection[28,]
+
+feb_2021 <- feb_2021 %>% mutate(day=1, hour=0) #create the variable day
+feb_2021 <- feb_2021[rep(seq_len(nrow(feb_2021)), each = 28), ] #multiplies each row 30 times
+feb_2021 <- feb_2021 %>% group_by(year, month, day) %>% mutate(day=1:28) # add days from 1 to 30
+
+feb_2021 <- feb_2021[rep(seq_len(nrow(feb_2021)), each = 24), ] #For each day, add 24 hours
+feb_2021 <- feb_2021 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+feb_2021 <- feb_2021 %>% mutate(elec_inyected =  ener_iny/(28))
+
+feb_2021 <- feb_2021 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+29) March - 2021 
+```{r}
+mar_2021 <- final_inyection[29,]
+
+mar_2021 <- mar_2021 %>% mutate(day=1, hour=0) #create the variable day
+mar_2021 <- mar_2021[rep(seq_len(nrow(mar_2021)), each = 31), ] #multiplies each row 30 times
+mar_2021 <- mar_2021 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+mar_2021 <- mar_2021[rep(seq_len(nrow(mar_2021)), each = 24), ] #For each day, add 24 hours
+mar_2021 <- mar_2021 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+mar_2021 <- mar_2021 %>% mutate(elec_inyected =  ener_iny/31)
+
+mar_2021 <- mar_2021 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+30) April 2021 
+```{r}
+apr_2021 <- final_inyection[30,]
+
+apr_2021 <- apr_2021 %>% mutate(day=1, hour=0) #create the variable day
+apr_2021 <- apr_2021[rep(seq_len(nrow(apr_2021)), each = 30), ] #multiplies each row 30 times
+apr_2021 <- apr_2021 %>% group_by(year, month, day) %>% mutate(day=1:30) # add days from 1 to 30
+
+apr_2021 <- apr_2021[rep(seq_len(nrow(apr_2021)), each = 24), ] #For each day, add 24 hours
+apr_2021 <- apr_2021 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+apr_2021 <- apr_2021 %>% mutate(elec_inyected =  ener_iny/(30))
+
+apr_2021 <- apr_2021 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+31) May - 2021 
+```{r}
+may_2021 <- final_inyection[31,]
+
+may_2021 <- may_2021 %>% mutate(day=1, hour=0) #create the variable day
+may_2021 <- may_2021[rep(seq_len(nrow(may_2021)), each = 31), ] #multiplies each row 30 times
+may_2021 <- may_2021 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+may_2021 <- may_2021[rep(seq_len(nrow(may_2021)), each = 24), ] #For each day, add 24 hours
+may_2021 <- may_2021 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+may_2021 <- may_2021 %>% mutate(elec_inyected =  ener_iny/(31))
+
+may_2021 <- may_2021 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+32) June 2021 
+```{r}
+june_2021 <- final_inyection[32,]
+
+june_2021 <- june_2021 %>% mutate(day=1, hour=0) #create the variable day
+june_2021 <- june_2021[rep(seq_len(nrow(june_2021)), each = 30), ] #multiplies each row 30 times
+june_2021 <- june_2021 %>% group_by(year, month, day) %>% mutate(day=1:30) # add days from 1 to 30
+
+june_2021 <- june_2021[rep(seq_len(nrow(june_2021)), each = 24), ] #For each day, add 24 hours
+june_2021 <- june_2021 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+june_2021 <- june_2021 %>% mutate(elec_inyected =  ener_iny/(30))
+
+june_2021 <- june_2021 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+
+33) July - 2021 
+```{r}
+july_2021 <- final_inyection[33,]
+
+july_2021 <- july_2021 %>% mutate(day=1, hour=0) #create the variable day
+july_2021 <- july_2021[rep(seq_len(nrow(july_2021)), each = 31), ] #multiplies each row 30 times
+july_2021 <- july_2021 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+july_2021 <- july_2021[rep(seq_len(nrow(july_2021)), each = 24), ] #For each day, add 24 hours
+july_2021 <- july_2021 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+july_2021 <- july_2021 %>% mutate(elec_inyected =  ener_iny/(31))
+
+july_2021 <- july_2021 %>% mutate(elec_inyected= elec_inyected/1000) #change the electricity inyected from KWh to MWh
+```
+
+34) August - 2021 
+```{r}
+aug_2021 <- final_inyection[34,]
+
+aug_2021 <- aug_2021 %>% mutate(day=1, hour=0) #create the variable day
+aug_2021 <- aug_2021[rep(seq_len(nrow(aug_2021)), each = 31), ] #multiplies each row 30 times
+aug_2021 <- aug_2021 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+aug_2021 <- aug_2021[rep(seq_len(nrow(aug_2021)), each = 24), ] #For each day, add 24 hours
+aug_2021 <- aug_2021 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+aug_2021 <- aug_2021 %>% mutate(elec_inyected = ener_iny/31)
+
+aug_2021 <- aug_2021 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+35) September 2021 
+```{r}
+sep_2021 <- final_inyection[35,]
+
+sep_2021 <- sep_2021 %>% mutate(day=1, hour=0) #create the variable day
+sep_2021 <- sep_2021[rep(seq_len(nrow(sep_2021)), each = 30), ] #multiplies each row 30 times
+sep_2021 <- sep_2021 %>% group_by(year, month, day) %>% mutate(day=1:30) # add days from 1 to 30
+
+sep_2021 <- sep_2021[rep(seq_len(nrow(sep_2021)), each = 24), ] #For each day, add 24 hours
+sep_2021 <- sep_2021 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+sep_2021 <- sep_2021 %>% mutate(elec_inyected =  ener_iny/30)
+
+sep_2021 <- sep_2021 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+36) October - 2021 
+```{r}
+oct_2021 <- final_inyection[36,]
+
+oct_2021 <- oct_2021 %>% mutate(day=1, hour=0) #create the variable day
+oct_2021 <- oct_2021[rep(seq_len(nrow(oct_2021)), each = 31), ] #multiplies each row 30 times
+oct_2021 <- oct_2021 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+oct_2021 <- oct_2021[rep(seq_len(nrow(oct_2021)), each = 24), ] #For each day, add 24 hours
+oct_2021 <- oct_2021 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+oct_2021 <- oct_2021 %>% mutate(elec_inyected =  ener_iny/31)
+
+oct_2021 <- oct_2021 %>% mutate(elec_inyected= elec_inyected/1000) # changefrom the electricity inyected from KWh to MWh
+```
+
+37) November 2021 
+```{r}
+nov_2021 <- final_inyection[37,]
+
+nov_2021 <- nov_2021 %>% mutate(day=1, hour=0) #create the variable day
+nov_2021 <- nov_2021[rep(seq_len(nrow(nov_2021)), each = 30), ] #multiplies each row 30 times
+nov_2021 <- nov_2021 %>% group_by(year, month, day) %>% mutate(day=1:30) # add days from 1 to 30
+
+nov_2021 <- nov_2021[rep(seq_len(nrow(nov_2021)), each = 24), ] #For each day, add 24 hours
+nov_2021 <- nov_2021 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+nov_2021 <- nov_2021 %>% mutate(elec_inyected =  ener_iny/30)
+
+nov_2021 <- nov_2021 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+38) December - 2021 
+```{r}
+dec_2021 <- final_inyection[38,]
+
+dec_2021 <- dec_2021 %>% mutate(day=1, hour=0) #create the variable day
+dec_2021 <- dec_2021[rep(seq_len(nrow(dec_2021)), each = 31), ] #multiplies each row 30 times
+dec_2021 <- dec_2021 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+dec_2021 <- dec_2021[rep(seq_len(nrow(dec_2021)), each = 24), ] #For each day, add 24 hours
+dec_2021 <- dec_2021 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+dec_2021 <- dec_2021 %>% mutate(elec_inyected =  ener_iny/31)
+
+dec_2021 <- dec_2021 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+```{r}
+elec_inyection_2021 <- rbind(jan_2021, feb_2021, mar_2021, apr_2021, may_2021, june_2021, july_2021, aug_2021, sep_2021, oct_2021, nov_2021, dec_2021)
+rm(jan_2021, feb_2021, mar_2021, apr_2021, may_2021, june_2021, july_2021, aug_2021, sep_2021, oct_2021, nov_2021, dec_2021)
+```
+
+#2022#
+39) January - 2022
+```{r}
+jan_2022 <- final_inyection[39,]
+
+jan_2022 <- jan_2022 %>% mutate(day=1, hour=0) #create the variable day
+jan_2022 <- jan_2022[rep(seq_len(nrow(jan_2022)), each = 31), ] #multiplies each row 30 times
+jan_2022 <- jan_2022 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+jan_2022 <- jan_2022[rep(seq_len(nrow(jan_2022)), each = 24), ] #For each day, add 24 hours
+jan_2022 <- jan_2022 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+jan_2022 <- jan_2022 %>% mutate(elec_inyected = ener_iny/31)
+
+jan_2022 <- jan_2022 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+40) February - 2022
+```{r}
+feb_2022 <- final_inyection[40,]
+
+feb_2022 <- feb_2022 %>% mutate(day=1, hour=0) #create the variable day
+feb_2022 <- feb_2022[rep(seq_len(nrow(feb_2022)), each = 28), ] #multiplies each row 30 times
+feb_2022 <- feb_2022 %>% group_by(year, month, day) %>% mutate(day=1:28) # add days from 1 to 30
+
+feb_2022 <- feb_2022[rep(seq_len(nrow(feb_2022)), each = 24), ] #For each day, add 24 hours
+feb_2022 <- feb_2022 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+feb_2022 <- feb_2022 %>% mutate(elec_inyected =  ener_iny/28)
+
+feb_2022 <- feb_2022 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+41) March - 2022
+```{r}
+mar_2022 <- final_inyection[41,]
+
+mar_2022 <- mar_2022 %>% mutate(day=1, hour=0) #create the variable day
+mar_2022 <- mar_2022[rep(seq_len(nrow(mar_2022)), each = 31), ] #multiplies each row 30 times
+mar_2022 <- mar_2022 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+mar_2022 <- mar_2022[rep(seq_len(nrow(mar_2022)), each = 24), ] #For each day, add 24 hours
+mar_2022 <- mar_2022 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+mar_2022 <- mar_2022 %>% mutate(elec_inyected =  ener_iny/(31))
+
+mar_2022 <- mar_2022 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+42) April 2022 
+```{r}
+apr_2022 <- final_inyection[42,]
+
+apr_2022 <- apr_2022 %>% mutate(day=1, hour=0) #create the variable day
+apr_2022 <- apr_2022[rep(seq_len(nrow(apr_2022)), each = 30), ] #multiplies each row 30 times
+apr_2022 <- apr_2022 %>% group_by(year, month, day) %>% mutate(day=1:30) # add days from 1 to 30
+
+apr_2022 <- apr_2022[rep(seq_len(nrow(apr_2022)), each = 24), ] #For each day, add 24 hours
+apr_2022 <- apr_2022 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+apr_2022 <- apr_2022 %>% mutate(elec_inyected =  ener_iny/(30))
+
+apr_2022 <- apr_2022 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+43) May - 2022 
+```{r}
+may_2022 <- final_inyection[43,]
+
+may_2022 <- may_2022 %>% mutate(day=1, hour=0) #create the variable day
+may_2022 <- may_2022[rep(seq_len(nrow(may_2022)), each = 31), ] #multiplies each row 30 times
+may_2022 <- may_2022 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+may_2022 <- may_2022[rep(seq_len(nrow(may_2022)), each = 24), ] #For each day, add 24 hours
+may_2022 <- may_2022 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+may_2022 <- may_2022 %>% mutate(elec_inyected =  ener_iny/(31))
+
+may_2022 <- may_2022 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+44) June 2022 
+```{r}
+june_2022 <- final_inyection[44,]
+
+june_2022 <- june_2022 %>% mutate(day=1, hour=0) #create the variable day
+june_2022 <- june_2022[rep(seq_len(nrow(june_2022)), each = 30), ] #multiplies each row 30 times
+june_2022 <- june_2022 %>% group_by(year, month, day) %>% mutate(day=1:30) # add days from 1 to 30
+
+june_2022 <- june_2022[rep(seq_len(nrow(june_2022)), each = 24), ] #For each day, add 24 hours
+june_2022 <- june_2022 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+june_2022 <- june_2022 %>% mutate(elec_inyected =  ener_iny/(30))
+
+june_2022 <- june_2022 %>% mutate(elec_inyected= elec_inyected/1000) #change the electricity inyected from KWh to MWh
+```
+
+
+45) July - 2022 
+```{r}
+july_2022 <- final_inyection[45,]
+
+july_2022 <- july_2022 %>% mutate(day=1, hour=0) #create the variable day
+july_2022 <- july_2022[rep(seq_len(nrow(july_2022)), each = 31), ] #multiplies each row 30 times
+july_2022 <- july_2022 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+july_2022 <- july_2022[rep(seq_len(nrow(july_2022)), each = 24), ] #For each day, add 24 hours
+july_2022 <- july_2022 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+july_2022 <- july_2022 %>% mutate(elec_inyected =  ener_iny/(31))
+
+july_2022 <- july_2022 %>% mutate(elec_inyected= elec_inyected/1000) #change  the electricity inyected from KWh to MWh
+```
+
+46) August - 2022 
+```{r}
+aug_2022 <- final_inyection[46,]
+
+aug_2022 <- aug_2022 %>% mutate(day=1, hour=0) #create the variable day
+aug_2022 <- aug_2022[rep(seq_len(nrow(aug_2022)), each = 31), ] #multiplies each row 30 times
+aug_2022 <- aug_2022 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+aug_2022 <- aug_2022[rep(seq_len(nrow(aug_2022)), each = 24), ] #For each day, add 24 hours
+aug_2022 <- aug_2022 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+aug_2022 <- aug_2022 %>% mutate(elec_inyected = ener_iny/(31))
+
+aug_2022 <- aug_2022 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+```
+
+```{r}
+elec_inyection_2022 <- rbind(jan_2022, feb_2022, mar_2022, apr_2022, may_2022, june_2022, july_2022, aug_2022)
+rm(jan_2022, feb_2022, mar_2022, apr_2022, may_2022, june_2022, july_2022, aug_2022)
+```
+
+append them and save it
+```{r}
+final_elec_inyected <- rbind(elec_inyection_2018, elec_inyection_2019, elec_inyection_2020, elec_inyection_2021, elec_inyection_2022)
+
+save(final_elec_inyected, file= "C:/Users/natal/OneDrive - University of Edinburgh/Net_metering_UY/Final_project/Gurobi/final_elec_inyected_graph.RData")
+```

@@ -1,0 +1,1636 @@
+---
+title:   "Main Analysis"
+authors: "Natalia D'Agosti & Facundo Danza" 
+---
+
+
+# Load the packages
+
+First, we load the necessary pacakges:
+```{r}
+rm(list=ls())
+gc()
+```
+
+Second, we load the packages
+```{r}
+# install.packages("pacman")
+pacman::p_load(tidyverse, readxl, lubridate, margins,
+               sandwich, arm, fixest, gapminder, 
+               #sunab, 
+               car, fplot, did)
+```
+
+Third, we set the plotting theme:
+```{r}
+theme_set(theme_bw())
+```
+
+Then, we load the directories:
+```{r}
+dir        <- list()
+dir$root   <- dirname(getwd())
+dir$data   <- paste0(dirname(getwd()), "/data/")
+dir$fig    <- paste0(dirname(getwd()), "/figures/")
+dir$tab    <- paste0(dirname(getwd()), "/tables/")
+```
+
+
+# Clean the databases
+
+## First database
+
+Upload the data
+*First database: Copia de informacion - Facundo Danza*
+```{r}
+MG_data <- 
+  read_excel(paste0(dir$data,"data/Copia de información-Facundo Danza.xlsx"), 
+             sheet=1 ,range="A2:BA1293")
+```
+
+Arrange the name of the variables:
+```{r}
+MG_data <- MG_data %>% rename("ID" = "Número", 
+                            "MG_install_date" ="Fecha puesta en servicio de la IMG",
+                            "dto" ="Departamento",
+                            "power_hired_W" = "Potencia contratada (W)",
+                            "power_nominal_W"="Potencia nominal de la IMG (W)",
+                            "contract"= "Persona física / persona jurídica",
+                            "iny_2020_10"="44105...7",
+                            "iny_2020_11"="44136...8",
+                            "iny_2020_12"="44166...9",
+                            "iny_2021_01"="44197...10",
+                            "iny_2021_02"="44228...11",
+                            "iny_2021_03"="44256...12",
+                            "iny_2021_04"="44287...13",
+                            "iny_2021_05"="44317...14",
+                            "iny_2021_06"="44348...15",
+                            "iny_2021_07"="44378...16",
+                            "iny_2021_08"="44409...17",
+                            "iny_2021_09"="44440...18",
+                            "iny_2021_10"="44470...19",
+                            "iny_2021_11"="44501...20",
+                            "iny_2021_12"="44531...21",
+                            "iny_2022_01"="44562...22",
+                            "iny_2022_02"="44593...23",
+                            "iny_2022_03"="44621...24",
+                            "iny_2022_04"="44652...25",
+                            "iny_2022_05"="44682...26",
+                            "iny_2022_06"="44713...27",
+                            "iny_2022_07"="44743...28",
+                            "iny_2022_08"="44774...29",
+                            
+                            
+                            "ext_2020_10"="44105...31",
+                            "ext_2020_11"="44136...32",
+                            "ext_2020_12"="44166...33",
+                            "ext_2021_01"="44197...34",
+                            "ext_2021_02"="44228...35",
+                            "ext_2021_03"="44256...36",
+                            "ext_2021_04"="44287...37",
+                            "ext_2021_05"="44317...38",
+                            "ext_2021_06"="44348...39",
+                            "ext_2021_07"="44378...40",
+                            "ext_2021_08"="44409...41",
+                            "ext_2021_09"="44440...42",
+                            "ext_2021_10"="44470...43",
+                            "ext_2021_11"="44501...44",
+                            "ext_2021_12"="44531...45",
+                            "ext_2022_01"="44562...46",
+                            "ext_2022_02"="44593...47",
+                            "ext_2022_03"="44621...48",
+                            "ext_2022_04"="44652...49",
+                            "ext_2022_05"="44682...50",
+                            "ext_2022_06"="44713...51",
+                            "ext_2022_07"="44743...52",
+                            "ext_2022_08"="44774...53")
+```
+
+Eliminate a column that has no data
+```{r}
+MG_data <- MG_data %>% 
+  dplyr::select(-c(30))
+```
+
+### Injection Data
+
+```{r}
+MG_iny <- 
+  MG_data %>% 
+  dplyr::select("ID", "MG_install_date", "dto", "power_hired_W", "power_nominal_W","contract", "iny_2020_10","iny_2020_11","iny_2020_12", "iny_2021_01", "iny_2021_02", "iny_2021_03","iny_2021_04", "iny_2021_05", "iny_2021_06", "iny_2021_07", "iny_2021_08", "iny_2021_09", "iny_2021_10", "iny_2021_11","iny_2021_12","iny_2022_01", "iny_2022_02", "iny_2022_03", "iny_2022_04", "iny_2022_05", "iny_2022_06","iny_2022_07", "iny_2022_08")
+```
+
+
+We reshape the data
+```{r}
+MG_iny <- MG_iny %>% 
+  pivot_longer(-c("ID", "MG_install_date", "dto","power_hired_W", "power_nominal_W","contract"), names_to="date", values_to="iny_kwh")
+```
+
+Arrange the date
+```{r}
+MG_iny <- MG_iny %>%  
+  separate(date, c("iny/ext", "year", "month"), sep="_", remove=FALSE)
+MG_iny$year <- as.numeric(MG_iny$year)
+MG_iny$month <- as.numeric(MG_iny$month)
+```
+
+### Extraction Data
+
+```{r}
+MG_ext <- MG_data %>% dplyr::select("ID", "ext_2020_10", "ext_2020_11","ext_2020_12", "ext_2021_01", "ext_2021_02", "ext_2021_03", "ext_2021_04", "ext_2021_05", "ext_2021_06", "ext_2021_07", "ext_2021_08","ext_2021_09","ext_2021_10", "ext_2021_11", "ext_2021_12", "ext_2022_01", "ext_2022_02", "ext_2022_03", "ext_2022_04", "ext_2022_05", "ext_2022_06", "ext_2022_07", "ext_2022_08")
+```
+
+We reshape the data
+```{r}
+MG_ext <- 
+  MG_ext %>% pivot_longer(-c("ID"), names_to="date", values_to="ext_kwh")
+```
+
+We arrange the date
+```{r}
+MG_ext <- MG_ext %>%  
+  separate(date, c("iny/ext", "year", "month"), sep="_", remove=FALSE)
+
+MG_ext = 
+  MG_ext %>%
+  mutate(across(c("year", "month"), 
+                as.numeric))
+```
+
+Merge the database:
+```{r}
+MG_final <- 
+  merge(MG_iny, MG_ext, by=c("ID", "year", "month"))
+
+#create day
+MG_final <- 
+  MG_final %>% mutate(day=01)
+
+#now united day-month-year to create date:
+MG_final <- MG_final %>% 
+  mutate(date = 
+           as.Date(paste(MG_final$day, MG_final$month, MG_final$year, sep="/"),
+                   "%d/%m/%Y"))
+
+MG_final <- MG_final %>% 
+  dplyr::select(-c(2,3,9,10,12,13,15)) # eliminates some columns that are not necessary
+
+MG_final_check <- MG_final %>% 
+  group_by(ID) %>% 
+  summarise(num_agents = n())   # get the number of Microgenerators 1291
+```
+
+Eliminate all the other data frames
+```{r}
+rm(MG_ext, MG_iny, MG_data)
+```
+
+## Second Database
+
+*Third Database: "Consumo año anterior a Ingreso como MG"*
+```{r}
+Third_MG<- 
+  read_excel(paste0(dir$data,"data/ConsultaFinalAnteriores.xlsx"), 
+             sheet=1 ,range="A1:Q1002")
+```
+
+We rename the variables:
+```{r}
+Third_MG <- Third_MG %>% 
+  rename( "ID_3"="...1",
+         "act_state"="...2",
+         "agent_type"="...3",
+         "dto"="...4",
+         "date_installation"="...5")
+
+Third_MG = Third_MG[-1,] #Drop the first row
+```
+
+Here the data is before and after the solar panels installation: not from Oct 2020 to Aug 2022. We need to modify it accordingly:
+```{r}
+Third_MG <- Third_MG %>%  
+  separate(date_installation, c("month", "year"), 
+           sep="/", remove=FALSE)
+
+Third_MG = 
+  Third_MG %>%
+  mutate(across(c("year", "month"), 
+                as.numeric))
+```
+
+We arrange the date
+```{r}
+#convert the data to long:
+Third_MG <- Third_MG %>% 
+  pivot_longer(-c(ID_3, act_state, agent_type, dto, 
+                  date_installation, month, year), 
+               names_to="change_date", values_to="ext") 
+
+#separate month and year
+Third_MG <- Third_MG %>%  
+  separate(change_date, c("wte", "wte2"), sep="O", remove=FALSE)
+
+Third_MG <- Third_MG %>%  
+  separate(wte2, c("month_substr", "wte3"), sep="M")
+
+#create day
+Third_MG <- Third_MG %>%
+  mutate(day=01)
+
+#now united day-month-year to create date:
+Third_MG <- Third_MG %>% 
+  mutate(true_date_install = 
+           as.Date(paste(Third_MG$day, Third_MG$month, Third_MG$year, sep="/"),
+                   "%d/%m/%Y"))
+
+#month_substr is a character; we have to transform it to number
+class(Third_MG$month_substr) 
+Third_MG$month_substr <- gsub("- 1" , "-1", Third_MG$month_substr) 
+Third_MG$month_substr <- gsub("- 2" , "-2", Third_MG$month_substr)
+Third_MG$month_substr <- gsub("- 3" , "-3", Third_MG$month_substr) 
+Third_MG$month_substr <- gsub("- 4" , "-4", Third_MG$month_substr) 
+Third_MG$month_substr <- gsub("- 5" , "-5", Third_MG$month_substr) 
+Third_MG$month_substr <- gsub("- 6" , "-6", Third_MG$month_substr) 
+Third_MG$month_substr <- gsub("- 7" , "-7", Third_MG$month_substr) 
+Third_MG$month_substr <- gsub("- 8" , "-8", Third_MG$month_substr) 
+Third_MG$month_substr <- gsub("- 9" , "-9", Third_MG$month_substr) 
+Third_MG$month_substr <- gsub("- 10" , "-10", Third_MG$month_substr) 
+Third_MG$month_substr <- gsub("- 11" , "-11", Third_MG$month_substr) 
+Third_MG$month_substr <- gsub("- 12" , "-12", Third_MG$month_substr) 
+
+#the months are wrong: -1 is actually -12, - 2 is actually -11, and so on..
+Third_MG <- Third_MG %>% 
+  mutate(month_substr = as.numeric(month_substr),
+         month_substr =  -month_substr - 13)
+
+#now subtract the month to minus 1
+Third_MG <- Third_MG %>% 
+  mutate(date = as.Date(true_date_install %m+% months(month_substr)))
+
+#type of class of ext
+class(Third_MG$ext)
+Third_MG = 
+  Third_MG %>% 
+  mutate(ext = as.numeric(ext)) #convert it to number
+
+#elminate some columns
+Third_MG <- 
+  Third_MG %>% dplyr::select(-c(6,7,8,9,11,13))
+```
+
+## Third Database
+
+*Four Database: "ConsultaFinalNuevas"*
+```{r}
+fourth_MG<- read_excel(paste0(dir$data,"data/ConsultaFinalNuevas.xlsx"), 
+                       sheet=1 ,range="A1:AC1002")
+```
+
+We rename the variables:
+```{r}
+fourth_MG <- fourth_MG %>% 
+  rename( "ID_4"="...1",
+         "act_state"="...2",
+         "agent_type"="...3",
+         "dto"="...4",
+         "date_installation"="...5",
+         "ener_fact_+1"="INGRESO + 1 MES",
+         "ener_gen_+1"="...7",
+         "ener_fact_+2"="INGRESGO + 2 MESES",
+         "ener_gen_+2"="...9",
+         "ener_fact_+3"="INGRESGO + 3 MESES",
+         "ener_gen_+3"="...11",
+         "ener_fact_+4"="INGRESGO + 4 MESES",
+         "ener_gen_+4"="...13",
+         "ener_fact_+5"="INGRESGO + 5 MESES",
+         "ener_gen_+5"="...15",  
+         "ener_fact_+6"="INGRESGO + 6 MESES",
+         "ener_gen_+6"="...17",
+         "ener_fact_+7"="INGRESGO + 7 MESES",
+         "ener_gen_+7"="...19",
+         "ener_fact_+8"="INGRESGO + 8 MESES",
+         "ener_gen_+8"="...21", 
+         "ener_fact_+9"="INGRESGO + 9 MESES",
+         "ener_gen_+9"="...23",     
+         "ener_fact_+10"="INGRESGO + 10 MESES",
+         "ener_gen_+10"="...25",   
+         "ener_fact_+11"="INGRESGO + 11 MESES",
+         "ener_gen_+11"="...27",
+         "ener_fact_+12"="INGRESGO + 12 MESES",
+         "ener_gen_+12"="...29")
+
+fourth_MG = fourth_MG[-1,] #Drop the first row
+```
+
+### Electricity Extraction
+
+We separate the data
+```{r}
+fourth_MG_1 <- fourth_MG %>% dplyr::select("ID_4", "act_state", "agent_type", "dto",  "date_installation", "ener_fact_+1", "ener_fact_+2", "ener_fact_+3", "ener_fact_+4", "ener_fact_+5", "ener_fact_+6", "ener_fact_+7", "ener_fact_+8", "ener_fact_+9", "ener_fact_+10", "ener_fact_+11", "ener_fact_+12")
+```
+
+We convert the data to long:
+```{r}
+fourth_MG_1 <- fourth_MG_1 %>% 
+  pivot_longer(-c("ID_4", "act_state", "agent_type", "dto",  "date_installation"),
+               names_to="change_date", values_to="ener_fact")
+```
+
+We generate the date variable
+```{r}
+fourth_MG_1 <- fourth_MG_1 %>%  
+  separate(date_installation, c("month", "year"), sep="/", remove=FALSE)
+
+fourth_MG_1 = fourth_MG_1 %>%
+  mutate(across(c("year", "month"), 
+                as.numeric))
+
+#create day
+fourth_MG_1 <- fourth_MG_1 %>% 
+  mutate(day=01)
+
+#now united day-month-year to create date:
+fourth_MG_1 <- fourth_MG_1 %>% 
+  mutate(true_date_install = 
+           as.Date(paste(fourth_MG_1$day, fourth_MG_1$month, fourth_MG_1$year,
+                         sep="/"), 
+                   "%d/%m/%Y"))
+
+
+#separate month and year to add the month
+fourth_MG_1 <- fourth_MG_1 %>%  
+  separate(change_date, c("wte", "wte_2", "month_plus"), 
+           sep="_", remove=FALSE)
+
+fourth_MG_1$month_plus <- 
+  as.numeric(fourth_MG_1$month_plus) #convert it to number
+
+class(fourth_MG_1$month_plus)
+
+#now add the month to +1 to +12
+fourth_MG_1 <- fourth_MG_1 %>% 
+  mutate(date = as.Date(true_date_install %m+% months(month_plus)))
+
+#elminate some columns
+fourth_MG_1 <- fourth_MG_1 %>% dplyr::select(-c(6,7,8,9,10,13))
+
+#convert the energy_facturada to numeric
+fourth_MG_1$ener_fact <- as.numeric(fourth_MG_1$ener_fact)
+```
+
+### Electricity Injection
+
+We separate the data
+```{r}
+fourth_MG_2 <- fourth_MG %>% 
+  dplyr::select("ID_4","date_installation", "ener_gen_+1", "ener_gen_+2", "ener_gen_+3", "ener_gen_+4", "ener_gen_+5", "ener_gen_+6", "ener_gen_+7", "ener_gen_+8", "ener_gen_+9", "ener_gen_+10", "ener_gen_+11", "ener_gen_+12")
+```
+
+And convert it to long:
+```{r}
+fourth_MG_2 <- fourth_MG_2 %>% 
+  pivot_longer(-c("ID_4", "date_installation"), 
+               names_to="change_date", values_to="ener_gen")
+```
+
+We generate the date variable
+```{r}
+fourth_MG_2 <- fourth_MG_2 %>%  
+  separate(date_installation, c("month", "year"), sep="/", remove=FALSE)
+
+fourth_MG_2 = fourth_MG_2 %>%
+  mutate(across(c("year", "month"), 
+                as.numeric))
+
+#create day
+fourth_MG_2 <- fourth_MG_2 %>% 
+  mutate(day=01)
+
+#now united day-month-year to create date:
+fourth_MG_2 <- fourth_MG_2 %>% mutate(true_date_install = as.Date(paste(fourth_MG_2$day, fourth_MG_2$month, fourth_MG_2$year, 
+                                                                        sep="/"),
+                                                                  "%d/%m/%Y"))
+
+
+#separate month and year to add the month
+fourth_MG_2 <- fourth_MG_2 %>%  
+  separate(change_date, c("wte", "wte_2", "month_plus"), sep="_", remove=FALSE)
+
+fourth_MG_2$month_plus <- 
+  as.numeric(fourth_MG_2$month_plus) #convert it to number
+
+class(fourth_MG_2$month_plus)
+
+#now add the month to +1 to +12
+fourth_MG_2 <- fourth_MG_2 %>% 
+  mutate(date = as.Date(true_date_install %m+% months(month_plus)))
+
+#eliminate some columns
+fourth_MG_2 <- fourth_MG_2 %>% 
+  dplyr::select(-c(3,4,5,6,7,8,10))
+
+#convert the energy_facturada to numeric
+fourth_MG_2$ener_gen <- 
+  as.numeric(sub(",", ".", fourth_MG_2$ener_gen, fixed = TRUE))
+```
+
+We merge the database:
+```{r}
+fourth_MG <- merge(fourth_MG_1, fourth_MG_2, by=c("ID_4", "date", "date_installation", "true_date_install"))
+
+rm(fourth_MG_1, fourth_MG_2) # eliminate the other df
+```
+
+
+## Append Datasets
+
+To APPEND the database third and four we need to change some variables
+```{r}
+fourth_MG <- fourth_MG %>% rename("ID_34" = "ID_4",
+                                  "ext" = "ener_fact",
+                                  "month_plot" = "month_plus")
+
+Third_MG <- Third_MG %>% rename("ID_34" = "ID_3",
+                                "month_plot" = "month_substr")  
+
+Third_MG <- Third_MG %>% mutate(ener_gen="NA")
+Third_MG$ener_gen <- as.numeric(Third_MG$ener_gen)
+
+final_MG_34 <- rbind(fourth_MG, Third_MG)
+
+#eliminate those df that do not use:
+rm(fourth_MG, Third_MG)
+
+#table(final_MG_34$ID_34)
+```
+
+Unfortunately, the MG final and final_MG_34 cannot be merged given our current information.
+
+Thus, we take those agents that install the solar panel after '2021-10-01' and add them to the main dataset.
+
+We take all of the 2021 October from the new database.
+```{r}
+merge_MG <- MG_final %>% 
+  filter(MG_install_date >= as.Date('2021-10-01')) 
+
+#table(merge_MG$ID)
+
+class(MG_final$MG_install_date)
+#I want to substract the installation date minus the actual date, to get +- 12,11, months, 
+merge_MG <- merge_MG %>% mutate(month_plot= (interval((MG_install_date), 
+             (date))) %/% months(1))
+
+#table(merge_MG$ID)
+
+merge_MG_check <- merge_MG %>% 
+  group_by(ID) %>% summarise(num_agents = n())   # get the number of Microgenerators 282
+```
+
+We append both databases
+```{r}
+merge_MG <- merge_MG %>% 
+  rename("ID_34" = "ID",
+         "true_date_install" = "MG_install_date",
+         "agent_type"="contract",
+         "ener_gen"= "iny_kwh",
+         "ext"= "ext_kwh")
+
+merge_MG$agent_type <- 
+  gsub("física" , "Persona", merge_MG$agent_type) 
+merge_MG$agent_type <- 
+  gsub("jurídica" , "Negocio", merge_MG$agent_type) 
+
+merge_MG <- merge_MG %>% 
+  mutate(date_installation="",
+         act_state="")
+
+final_MG_34 <- final_MG_34 %>% 
+  mutate(power_hired_W="",
+         power_nominal_W ="")
+
+final_MG_34 <- final_MG_34 %>% 
+  filter(true_date_install < '2021-10-01') #eliminate october 2021 from the old database
+
+final_MG <- rbind(final_MG_34,
+                  merge_MG)
+
+rm(final_MG_34, merge_MG, merge_MG_check, MG_final, MG_final_check)
+
+#arrange the state variable
+final_MG$dto <- gsub("ARTIGAS" , "Artigas", final_MG$dto) 
+final_MG$dto <- gsub("CANELONES" , "Canelones", final_MG$dto)
+final_MG$dto <- gsub("CERRO LARGO" , "Cerro Largo", final_MG$dto)
+final_MG$dto <- gsub("COLONIA" , "Colonia", final_MG$dto)
+final_MG$dto <- gsub("DURAZNO" , "Durazno", final_MG$dto)
+final_MG$dto <- gsub("FLORES" , "Flores", final_MG$dto)
+final_MG$dto <- gsub("FLORIDA" , "Florida", final_MG$dto)
+final_MG$dto <- gsub("LAVALLEJA" , "Lavalleja", final_MG$dto)
+final_MG$dto <- gsub("MALDONADO" , "Maldonado", final_MG$dto)
+final_MG$dto <- gsub("MONTEVIDEO" , "Montevideo", final_MG$dto)
+final_MG$dto <- gsub("PAYSANDU" , "Paysandu", final_MG$dto)
+final_MG$dto <- gsub("Paysandú" , "Paysandu", final_MG$dto)
+final_MG$dto <- gsub("RIO NEGRO" , "Rio Negro", final_MG$dto)
+final_MG$dto <- gsub("Río Negro" , "Rio Negro", final_MG$dto)
+final_MG$dto <- gsub("RIVERA" , "Rivera", final_MG$dto)
+final_MG$dto <- gsub("ROCHA" , "Rocha", final_MG$dto)
+final_MG$dto <- gsub("SALTO" , "Salto", final_MG$dto)
+final_MG$dto <- gsub("SAN JOSE" , "San Jose", final_MG$dto)
+final_MG$dto <- gsub("San José" , "San Jose", final_MG$dto)
+final_MG$dto <- gsub("SORIANO" , "Soriano", final_MG$dto)
+final_MG$dto <- gsub("TACUAREMBO" , "Tacuarembó", final_MG$dto)
+final_MG$dto <- gsub("Tacuarembó" , "Tacuarembó", final_MG$dto)
+final_MG$dto <- gsub("TREINTA Y TRES" , "Treinta y Tres", final_MG$dto)
+
+
+final_MG <- final_MG %>% 
+  mutate(treat= ifelse(month_plot>0, 1, 0)) #make the treatment variable
+
+final_MG <- final_MG %>% 
+  mutate(ener_iny= ifelse(month_plot<0, 0,ener_gen)) #generate 0 before the solar panel installation
+
+final_MG <- final_MG %>% 
+  filter(month_plot>-13) %>% 
+  filter(month_plot!=0) %>% filter(ext>0) #eliminate the obervations that go to far away in time and the new dataset has -1,+1 and 0, time eliminate the latter, also for some error the extraction to the grid have negative values.
+
+final_MG_check <- final_MG %>% group_by(ID_34) %>% summarise(num_agents = n())   # get the number of Microgenerators 1278 
+#There are three which has no data: MG225, 53, and 548
+
+final_MG_check_firms <- final_MG %>% group_by(ID_34) %>% filter(agent_type=="Negocio") %>% summarise(num_agents = n())   # get the number of Microgenerators 912
+
+final_MG_check_hh <- final_MG %>% group_by(ID_34) %>% filter(agent_type=="Persona") %>% summarise(num_agents = n())   # get the number of Microgenerators 363
+
+#Keep only the firms#
+final_MG <- final_MG %>% 
+  filter(agent_type=="Negocio")
+
+final_sa <-  
+  final_MG 
+
+final_twfe <-  
+  final_MG 
+
+final_ca <- 
+  final_MG 
+```
+
+
+# Plot and Statistics
+
+## Plots
+
+We number the microgenerators 
+```{r}
+new_micro <-  
+  final_MG 
+
+new_micro <- new_micro %>% 
+  separate(true_date_install, 
+           c("year", "month", "day"), sep="-", remove=FALSE)
+
+class(new_micro$year) <- 
+  as.numeric(new_micro$year)
+
+class(new_micro$month) <- 
+  as.numeric(new_micro$month)
+
+new_micro <- new_micro %>% 
+  group_by(year, month, ID_34) %>% 
+  mutate(N = row_number() ) %>% 
+  dplyr::arrange(year, ID_34) %>% 
+  summarize(min_N = min(N))
+
+new_micro <- new_micro %>% 
+  mutate(date = as.Date(paste(year, month, "01", sep = "-"))) 
+#correct I have 913 agents
+
+new_micro <- new_micro  %>% 
+  group_by(date) %>% 
+  summarize(sum_n = sum(min_N) ) 
+
+new_micro$sum_n <- 
+  as.numeric(new_micro$sum_n)
+```
+
+
+```{r}
+plot_new_micro2 <- 
+  ggplot(data = new_micro, aes(x=date, y=sum_n, color="New Solar"), size=2) +
+  geom_point(size=2, color="darkgray") + 
+  theme(text = element_text(size = 15)) + 
+  labs(y = "Number of microgenerators" ,x = "Date") + 
+  theme(legend.key.size = unit(1, 'cm'))
+
+plot_new_micro2
+```
+
+We got more recent data on this front, which is the one we show in the paper.
+```{r}
+# ggsave(paste0(dir$fig, "plot_new_micro3.png"), 
+#        width = 7, height = 4.5)
+```
+
+```{r}
+count_by_month = 
+  final_MG %>%
+  filter(month_plot > 0) %>%
+  mutate(month = month(date)) %>%
+  group_by(month) %>%
+  summarise(prop_month = 
+              n())
+
+count_by_month = 
+  count_by_month %>% 
+  mutate(prop = 
+           prop_month/sum(prop_month), 
+         season = 
+           case_when(month %in% c(12, 1, 2) ~ "summer", 
+                     month %in% c(3, 4, 5) ~ "fall",
+                     month %in% c(6, 7, 8) ~ "winter",
+                     month %in% c(9, 10, 11) ~ "spring")
+         ) %>%
+  group_by(season) %>% 
+  summarise(prop = 
+              sum(prop))
+  
+```
+
+
+### Main plot
+
+Our main plot is the simple before and after plot, which we show below:
+```{r}
+theme_set(theme_bw())
+
+plot_final <- final_MG %>% 
+  filter(month_plot>-12) %>% 
+  filter(month_plot!=0) %>% 
+  filter(agent_type=="Negocio") %>% 
+  filter(ext>0)
+
+plot_final <-  plot_final %>% 
+  group_by(month_plot) %>%  
+  summarize(across(where(is.numeric), mean, na.rm=TRUE))
+
+all_final <-
+  ggplot(data = plot_final, aes(x=month_plot, y=ener_gen, color="Injected")) +
+  geom_point(aes(y=ext,color="Extracted"), size=2) +    
+  geom_point(size=2) + 
+  theme(text = element_text(size = 15)) + 
+  scale_color_manual(name="", values=c( "Injected"="red", "Extracted"="blue")) +
+  labs(y = "Electricity (kWh)" ,
+       x = "Month of Treatment") + 
+  theme(legend.key.size = unit(1, 'cm'))
+
+all_final
+```
+
+```{r}
+ggsave(paste0(dir$fig,"all_final.png"), 
+       width = 7, height = 4.5)
+```
+
+
+## Descriptive Statistics
+
+We compute total electricity extraction from the grid in the whole period:
+```{r}
+final_MG %>% 
+  summarize(mean_ext_tot=mean(ext, na.rm=TRUE), 
+            sd_ext_tot=sd(ext, na.rm=TRUE), 
+            min_ext_tot=min(ext, na.rm=TRUE), 
+            max_ext_tot=max(ext, na.rm=TRUE))
+```
+
+We focus before installing the solar panel.
+```{r}
+final_MG1 <- final_MG %>% 
+  filter(month_plot<1)
+
+final_MG1 %>% 
+  summarize(mean_ext_bsp=mean(ext, na.rm=TRUE), 
+            sd_ext_bsp=sd(ext, na.rm=TRUE), 
+            min_ext_bsp=min(ext, na.rm=TRUE), 
+            max_ext_bsp=max(ext, na.rm=TRUE))
+```
+
+We now focus on after installing the solar panel installation
+```{r}
+final_MG2 <- final_MG %>% 
+  filter(month_plot>0)
+
+final_MG2 %>% summarize(mean_ext_asp=mean(ext, na.rm=TRUE), 
+                        sd_ext_asp=sd(ext, na.rm=TRUE), 
+                        min_ext_asp=min(ext, na.rm=TRUE), 
+                        max_ext_asp=max(ext, na.rm=TRUE))
+```
+
+
+We compute the injections from the grid after the solar panel installation:
+```{r}
+injections <- final_MG %>% 
+  filter(month_plot>-1)
+
+injections %>% summarize(mean_iny=mean(ener_iny, na.rm=TRUE),
+                         sd_iny=sd(ener_iny, na.rm=TRUE), 
+                         min_iny=min(ener_iny, na.rm=TRUE), 
+                         max_iny=max(ener_iny, na.rm=TRUE))
+```
+
+Injection from the grid before installing a solar panel.
+```{r}
+injections1 <- final_MG  %>% 
+  filter(month_plot<1)
+
+injections1 %>% 
+  summarize(mean_iny=mean(ener_iny, na.rm=TRUE), 
+            sd_iny=sd(ener_iny, na.rm=TRUE), 
+            min_iny=min(ener_iny, na.rm=TRUE), 
+            max_iny=max(ener_iny, na.rm=TRUE))
+```
+
+
+# Main Regressions: Sun and Abrahams
+
+First, we clean the data
+```{r}
+final_sa <- final_sa %>% 
+  filter(month_plot>-13)
+
+final_sa$date <- 
+  as.Date(final_sa$date)
+
+final_sa$true_date_install <- 
+  as.Date(final_sa$true_date_install)
+
+identical(class(final_sa$date), 
+          class(final_sa$true_date_install))
+
+final_sa <- final_sa %>% 
+  mutate(date_num=as.numeric(true_date_install))
+
+#final_sa <- final_sa %>% mutate (cohort = 1)
+
+final_sa <- final_sa %>% 
+  mutate(month_plot= ifelse(month_plot > 0, month_plot -1, month_plot)) #Change the period 1 to zero, two to 1.. etc:
+
+final_sa <- final_sa %>%  
+  separate(date, c("year", "month", "day"), sep="-", remove=FALSE)
+```
+
+## Electricity Extraction
+
+Then, we run the regression:
+```{r}
+sa_ex <- feols(ext ~ sunab(date_num, month_plot)| ID_34 +  month,
+                    data = final_sa, cluster = "dto")
+
+summary(sa_ex,agg = 
+          "ATT")
+```
+```{r}
+reg_list_sa_all = 
+ list(summary(sa_ex,agg = "ATT"))
+```
+
+
+```{r}
+setFixest_dict(c(ext = "Electricity Extraction (kWh)",
+                 ener_iny   = "Electricity Injection (kWh)",
+                "ext-ener_iny"  = 
+                  "Electricity Extraction minus Injection (kWh)",
+                 ATT  = "Solar Panel Installation", 
+                 ID_34 = "ID",
+                 dto   = "State",
+                 month = "Month", 
+                 year = "Year", 
+                month_plot  = 
+                   "Month of Treatment"))
+
+plot_ext1 <- 
+  fixest::coefplot(sa_ex, lab.fit="simple")
+```
+
+
+```{r}
+# ggsave(paste0(dir$fig,"plot_ext1.png"),
+#        width = 7, height = 4.5)
+```
+
+
+## Electricity Injection
+
+```{r}
+sa_in <- feols(ener_iny ~ sunab(date_num, month_plot)| ID_34 +  month,
+                    data = final_sa, cluster = "dto")
+```
+
+```{r}
+reg_list_sa_all = 
+  c(reg_list_sa_all, list(summary(sa_in,agg = "ATT")))
+```
+
+```{r}
+plot_inj1 <- 
+  fixest::coefplot(sa_in, lab.fit="simple")
+```
+
+```{r}
+# ggsave(paste0(dir$fig,"plot_inj1.png"), 
+#        width = 7, height = 4.5)
+```
+
+### Count MG and save coefficients
+
+We need to count the number of microgenerators per month and the effect of the policy to recover the CO2 emissions effect of the policy (`2.3.2_gurobi+back_of_envelope_extraction.Rmd`). 
+We do so as follows
+```{r}
+final_MG_count = 
+  final_MG %>% 
+  filter(month_plot > 0) %>%
+  mutate(year = year(date), 
+         month = month(date)) %>%
+  group_by(month, year) %>%
+  summarise(count_mg = n()) %>%
+  ungroup()
+
+final_MG_count = 
+  final_MG_count %>%
+  mutate(treat_effect_ext = - reg_list_sa_all[1][[1]][["coeftable"]][[1]] , 
+         treat_effect_inj = reg_list_sa_all[2][[1]][["coeftable"]][[1]])
+```
+
+```{r}
+write_csv(final_MG_count,
+          paste0(dir$data, 
+                 "constructed_data/n_of_mg.csv"))
+
+rm(final_MG_count)
+```
+
+
+### Net Effect
+
+```{r}
+sa_ne <- feols((ext - ener_iny) ~ sunab(date_num, month_plot)| ID_34 +  month,
+                    data = final_sa, cluster = "dto")
+```
+
+```{r}
+reg_list_sa_all = 
+  c(reg_list_sa_all, 
+  list(summary(sa_ne,agg = "ATT")))
+```
+
+```{r}
+plot_net1 <- 
+  fixest::coefplot(sa_ne, lab.fit="simple")
+```
+```{r}
+# ggsave(paste0(dir$fig,"plot_net1.png"), 
+#        width = 7, height = 4.5)
+```
+
+
+```{r}
+setFixest_dict(c(ext = "Extraction (kWh)",
+                 ener_iny   = "Injection (kWh)",
+                "ext-ener_iny"  = "Net Effect (kWh)",
+                 ATT  = "Solar Panel Installation", 
+                 ID_34 = "ID",
+                 dto   = "State",
+                 month = "Month", 
+                 year = "Year", 
+                month_plot  = 
+                   "Month of Treatment"), 
+               reset = TRUE)
+
+etable(reg_list_sa_all,
+         file = paste0(dir$tab,
+                       "sa_results.txt"),
+       replace = TRUE)
+
+etable(reg_list_sa_all)
+```
+
+We clean up the table a bit more, as we add this information in the notes of the table:
+```{r}
+# Load the table into R as text
+etable_path <- 
+  paste0(dir$tab, "sa_results.txt")
+
+etable_text <- 
+  readLines(etable_path)
+
+# Remove the 3rd and 4th to last lines
+etable_text_cleaned <- 
+  etable_text[-c((length(etable_text) - 5), 
+                 (length(etable_text) - 4))]
+
+# Write the cleaned table back to the same file or a new file
+writeLines(etable_text_cleaned, etable_path)
+```
+
+
+# Robutness
+
+## Event Study
+```{r}
+final_MG <- final_MG %>%  
+  separate(date, c("year", "month", "day"), 
+           sep="-", remove=FALSE)
+```
+
+### Extraction
+
+```{r}
+# Agent + month fixed effects
+main_result <- feols(ext ~  treat  | ID_34 + month, cluster = "dto", 
+                     data=final_MG)
+reg_list_all = 
+  list(main_result)
+```
+
+Taking the -1, and comparing all the estimates to it
+```{r}
+for (i in -1:-12) {
+  final_MG = 
+    final_MG %>%
+    mutate(lag_i = as.numeric(month_plot == i))
+  
+  names(final_MG)[ncol(final_MG)] <- 
+    paste0("lag",-i)
+  
+  A = 
+    paste0("lag",-i, " : ", i)
+  
+  setFixest_dict(A)
+}
+```
+
+
+```{r}
+for (i in 1:12) {
+  final_MG = 
+    final_MG %>%
+    mutate(lead_i = as.numeric(month_plot == i))
+  
+  names(final_MG)[ncol(final_MG)] <- 
+    paste0("lead",i)
+  
+  A = 
+    paste0("lead",i, " : ", i)
+  
+  setFixest_dict(A)
+}
+```
+
+
+```{r}
+main_result_2 <- feols(ext ~  lead12 + lead11 + lead10 + lead9 + lead8 + lead7 + lead6 + lead5 + lead4 + lead3 + lead2 + lag1 + lag2 + lag3 + lag4 + lag5 + lag6 + lag7 + lag8 + lag9 + lag10 + lag11 + lag12 | ID_34 + month, cluster = "dto", data=final_MG)
+```
+
+
+```{r}
+setFixest_dict(c(ext = "Electricity Extracted (kWh)"))
+
+plot_ext1 <- 
+  fixest::coefplot(main_result_2)
+
+plot_ext1
+```
+
+
+Save the database of extraction and injection of electricity of the grid for Gurobi:
+```{r}
+save(final_MG, 
+     file=paste0(dir$data, "Gurobi/extrac_data.RData"))
+```
+
+
+### Injection
+
+```{r}
+# Agent + month fixed effects
+main_iny <- 
+  feols(ener_iny ~  treat  | ID_34 + month, cluster = "dto", data=final_MG)
+
+reg_list_all = 
+ c(reg_list_all, list(main_iny))
+```
+
+```{r}
+main_iny_2 <- feols(ener_iny ~  lead12 + lead11 + lead10 + lead9 + lead8 + lead7 + lead6 + lead5 + lead4 + lead3 + lead2 + lag1 + lag2 + lag3 + lag4 + lag5 + lag6 + lag7 + lag8 + lag9 + lag10 + lag11 + lag12 | ID_34 + month, cluster = "dto", data=final_MG)
+```
+
+
+```{r}
+setFixest_dict(c(ener_iny = "Electricity Injected (kWh)"))
+
+plot_iny1 <- 
+  fixest::coefplot(main_iny_2)
+```
+
+### Net Effect
+
+We do the extraction - injection regression as one
+```{r}
+# Agent + month fixed effects
+net_effect <- 
+  feols((ext - ener_iny) ~  treat  | ID_34 + month, cluster = "dto", data=final_MG)
+
+reg_list_all = 
+ c(reg_list_all, list(net_effect))
+```
+
+```{r}
+setFixest_dict(c(ext   = "Extraction (kWh)",
+                 ener_iny   = "Injection (kWh)",
+                 'ext-ener_iny'   = "Net Demand (kWh)",
+                 treat  = "Solar Panel Installation", 
+                 ID_34 = "ID",
+                 dto   = "State",
+                 month = "Month", 
+                 year = "Year"))
+
+etable(reg_list_all,
+         file = paste0(dir$tab,
+                       "study_event_results.txt"),
+       replace = TRUE)
+
+etable(reg_list_all)
+```
+
+
+Net effect plot: with ID + month
+```{r}
+neteffect_plot <- feols((ext - ener_iny) ~  lead12 + lead11 + lead10 + lead9 + lead8 + lead7 + lead6 + lead5 + lead4 + lead3 + lead2 + lag1 + lag2 + lag3 + lag4 + lag5 + lag6 + lag7 + lag8 + lag9 + lag10 + lag11 + lag12 | ID_34 + month, cluster = "dto", data=final_MG)
+```
+
+
+```{r}
+setFixest_dict(c('ext-ener_iny' = 
+                   "Electricity Extracted minus Injected (kWh)"))
+
+neteffect_plot <- 
+  fixest::coefplot(neteffect_plot)
+
+neteffect_plot
+```
+
+
+```{r}
+# ggsave(paste0(dir$fig, "neteffect_plot.png"), 
+#        width = 7, height = 4.5)
+```
+
+## Two-way Fixed Effect Estimation
+
+We arrange the date and true_date_install variable
+```{r}
+final_twfe <- final_twfe %>% 
+  filter(month_plot>-13)
+
+final_twfe$date <- 
+  as.Date(final_twfe$date)
+
+final_twfe$true_date_install <- 
+  as.Date(final_twfe$true_date_install)
+
+identical(class(final_twfe$date), class(final_twfe$true_date_install))
+
+final_twfe <- final_twfe %>% 
+  mutate (cohort = 1)
+```
+
+We change the period 1 to zero, two to 1.. etc
+```{r}
+final_twfe <- final_twfe %>% 
+  mutate(month_plot= ifelse(month_plot > 0, month_plot -1, month_plot))
+```
+
+
+### Extraction
+```{r}
+final_twfe <- final_twfe %>%  
+  separate(date, c("year", "month", "day"), sep="-", remove=FALSE)
+
+twfe.est <- feols(ext ~ i(month_plot, cohort, ref = -1)| ID_34 + month,  
+                  data = final_twfe, cluster = "dto")
+```
+
+```{r}
+summary(twfe.est)
+
+twfe_plot <- 
+  fixest::coefplot(twfe.est)
+```
+
+### Injection
+```{r}
+twfe.est_iny <- 
+  feols(ener_iny ~ i(month_plot, cohort, ref = -1)| ID_34 + month,
+                      data = final_twfe, cluster = "dto")
+```
+
+
+```{r}
+twfe_plot_iny <- 
+  fixest::coefplot(twfe.est_iny)
+```
+
+
+### Net Effect 
+```{r}
+twfe.est_ne <- 
+  feols((ext - ener_iny) ~ i(month_plot, cohort, ref = -1)| ID_34 + month,  
+                  data = final_twfe, cluster = "dto")
+
+twfe.output_ne <- 
+  as.matrix(twfe.est_ne$coeftable)
+
+twfe_plot_ne <- 
+  fixest::coefplot(twfe.est_ne)
+```
+
+
+## Cluster the standard errors at firm level
+
+
+### Extraction
+```{r}
+sa_ex_rob <- feols(ext ~ sunab(date_num, month_plot)| ID_34 +  month,
+                    data = final_sa, cluster = "ID_34")
+
+reg_list_sa_rob =
+  list(summary(sa_ex_rob,agg = "ATT"))
+
+# twfe_plot_sa_R <- 
+#   fixest::coefplot(sa_ex_rob)
+```
+
+### Injection
+```{r}
+sa_in_rob <- feols(ener_iny ~ sunab(date_num, month_plot)| ID_34 +  month,
+                    data = final_sa, cluster = "ID_34")
+
+reg_list_sa_rob =
+  c(reg_list_sa_rob, list(summary(sa_in_rob,agg = "ATT")))
+
+# sa_plot_iny_R <- 
+#   fixest::coefplot(sa_in_rob)
+```
+
+### Net effect
+```{r}
+sa_ne_rob <- 
+  feols((ext - ener_iny) ~ sunab(date_num, month_plot)| ID_34 +  month,
+                    data = final_sa, cluster = "ID_34")
+
+reg_list_sa_rob =
+  c(reg_list_sa_rob, list(summary(sa_ne_rob,agg = "ATT")))
+
+# sa_plot_ne_R <- 
+#   fixest::coefplot(sa_ne_rob)
+```
+
+```{r}
+setFixest_dict(c(ext = "Extraction (kWh)",
+                 ener_iny   = "Injection (kWh)",
+                "ext-ener_iny"  = "Net Effect (kWh)",
+                 ATT  = "Solar Panel Installation", 
+                 ID_34 = "ID",
+                 dto   = "State",
+                 month = "Month", 
+                 year = "Year", 
+                month_plot  = 
+                   "Month of Treatment"), 
+               reset = TRUE)
+
+etable(reg_list_sa_rob,
+         file = paste0(dir$tab,
+                       "sa_results_rob_cluster.txt"),
+       replace = TRUE)
+
+etable(reg_list_sa_rob)
+```
+
+We clean up the table a bit more, as we add this information in the notes of the table:
+```{r}
+# Load the table into R as text
+etable_path <- 
+  paste0(dir$tab, "sa_results_rob_cluster.txt")
+
+etable_text <- 
+  readLines(etable_path)
+
+# Remove the 3rd and 4th to last lines
+etable_text_cleaned <- 
+  etable_text[-c((length(etable_text) - 5), 
+                 (length(etable_text) - 4))]
+
+# Write the cleaned table back to the same file or a new file
+writeLines(etable_text_cleaned, 
+           etable_path)
+```
+
+
+## Is the change in legislation binding?
+
+Collapse the data by ID and year
+```{r}
+change_binding <- final_sa %>%  
+  group_by(ID_34, year, agent_type) %>%  
+  summarise(sum_ext = sum(ext), 
+            sum_ener_iny=sum(ener_iny), na.ra=TRUE)
+
+change_binding <- change_binding %>% 
+  mutate(diff= sum_ext -  sum_ener_iny)
+
+change_binding <- change_binding %>% 
+  filter(diff<0)
+```
+
+Re-do the analysis, but without these firms: 87
+
+```{r}
+robust_1 <- final_sa %>% 
+  filter(!ID_34 %in% c('32', 'MG971', 'MG956' , 'MG944' ,'MG940' ,'MG92' ,'MG916' ,'MG88'  ,'MG87'  ,'MG853' , 'MG834' , 'MG832' , 'MG823' , 'MG819' , 'MG815' , 'MG794' , 'MG790' , 'MG78'  , 'MG770' , 'MG768' , 'MG762' , 'MG748' , 'MG720' , 'MG718' , 'MG674' , 'MG668' , 'MG667' , 'MG663' , 'MG65'  , 'MG625' , 'MG604' , 'MG603' , 'MG600' , 'MG598' , 'MG588' , 'MG581' , 'MG526' , 'MG506' , 'MG503' , 'MG494' , 'MG589' , 'MG485' , 'MG482' , 'MG461' , 'MG46' , 'MG455' , 'MG449' , 'MG448' , 'MG44'  , 'MG418', 'MG416', 'MG404', 'MG390' , 'MG381', 'MG378' , 'MG36'  , 'MG319', 'MG318' , 'MG305' , 'MG3'   , 'MG292' , 'MG261' , 'MG233' , 'MG227' , 'MG216' , 'MG214' , 'MG191' , 'MG174' , 'MG173' , 'MG172' , 'MG169' , 'MG160' , 'MG128' , 'MG123' , 'MG119' , 'MG118' , 'MG113' , '1215' ,  '1207'  , '1173'  , '1104'  , '1091', '1087' ,  '1062'  , '1059'  , '1045'  , '1038'))
+```
+
+### Extraction
+
+```{r}
+sa_ex_r1 <- feols(ext ~ sunab(date_installation, month_plot)| ID_34 +  month,
+                    data = robust_1, cluster = "dto")
+
+reg_list_sa_bd = 
+  list(summary(sa_ex_r1,agg = "ATT"))
+
+# twfe_plot_sa_r1 <- 
+#   fixest::coefplot(sa_ex_r1)
+```
+
+### Injection
+
+```{r}
+sa_in_r1 <- feols(ener_iny ~ 
+                    sunab(date_num, month_plot)| ID_34 +  month,
+                    data = robust_1, cluster = "dto")
+
+reg_list_sa_bd = 
+  c(reg_list_sa_bd,
+    list(summary(sa_in_r1, agg = "ATT")))
+
+# sa_plot_iny_r1 <- 
+#   fixest::coefplot(sa_in_r1)
+```
+
+### Net effect
+
+```{r}
+sa_ne_r1 <- feols((ext - ener_iny) ~ 
+                    sunab(date_num, month_plot)| ID_34 +  month,
+                    data = robust_1, cluster = "dto")
+
+reg_list_sa_bd = 
+  c(reg_list_sa_bd,
+    list(summary(sa_ne_r1,agg = "ATT")))
+
+# sa_plot_ne_r1 <- 
+#   fixest::coefplot(sa_ne_r1)
+```
+
+```{r}
+setFixest_dict(c(ext = "Extraction (kWh)",
+                 ener_iny   = "Injection (kWh)",
+                "ext-ener_iny"  = "Net Effect (kWh)",
+                 ATT  = "Solar Panel Installation", 
+                 ID_34 = "ID",
+                 dto   = "State",
+                 month = "Month", 
+                 year = "Year", 
+                month_plot  = 
+                   "Month of Treatment"), 
+               reset = TRUE)
+
+etable(reg_list_sa_bd,
+         file = paste0(dir$tab,
+                       "sa_results_rob_policy_bind.txt"),
+       replace = TRUE)
+
+etable(reg_list_sa_bd)
+```
+
+We clean up the table a bit more, as we add this information in the notes of the table:
+```{r}
+# Load the table into R as text
+etable_path <- 
+  paste0(dir$tab, "sa_results_rob_policy_bind.txt")
+
+etable_text <- 
+  readLines(etable_path)
+
+# Remove the 3rd and 4th to last lines
+etable_text_cleaned <- 
+  etable_text[-c((length(etable_text) - 5), 
+                 (length(etable_text) - 4))]
+
+# Write the cleaned table back to the same file or a new file
+writeLines(etable_text_cleaned, 
+           etable_path)
+```
+
+
+## Trim the 5% lower and 5% higher
+```{r}
+cutoff <- 
+  quantile(final_sa$ext, 0.95, na.rm = TRUE)
+
+robust_2 <- final_sa %>%  
+  filter(ext <= cutoff)
+```
+
+### Extraction
+
+```{r}
+sa_ex_r2 <- feols(ext ~ sunab(date_num, month_plot)| ID_34 +  month,
+                    data = robust_2, cluster = "dto")
+
+reg_list_sa_tl =
+    list(summary(sa_ex_r2,
+                 agg = "ATT"))
+```
+
+### Injection
+
+```{r}
+sa_in_r2 <- feols(ener_iny ~ sunab(date_num, month_plot)| ID_34 +  month,
+                    data = robust_2, cluster = "dto")
+
+reg_list_sa_tl =
+    c(reg_list_sa_tl,
+    list(summary(sa_in_r2,
+                 agg = "ATT")))
+```
+
+### Net effect
+```{r}
+sa_ne_r2 <- feols((ext - ener_iny) ~ 
+                    sunab(date_num, month_plot)| ID_34 +  month,
+                    data = robust_2, cluster = "dto")
+
+reg_list_sa_tl =
+    c(reg_list_sa_tl,
+    list(summary(sa_ne_r2,
+                 agg = "ATT")))
+```
+
+```{r}
+setFixest_dict(c(ext = "Extraction (kWh)",
+                 ener_iny   = "Injection (kWh)",
+                "ext-ener_iny"  = "Net Effect (kWh)",
+                 ATT  = "Solar Panel Installation", 
+                 ID_34 = "ID",
+                 dto   = "State",
+                 month = "Month", 
+                 year = "Year", 
+                month_plot  = 
+                   "Month of Treatment"), 
+               reset = TRUE)
+
+etable(reg_list_sa_tl,
+         file = paste0(dir$tab,
+                       "sa_results_rob_trim.txt"),
+       replace = TRUE)
+
+etable(reg_list_sa_tl)
+```
+
+```{r}
+# Load the table into R as text
+etable_path <- 
+  paste0(dir$tab, "sa_results_rob_policy_bind.txt")
+
+etable_text <- 
+  readLines(etable_path)
+
+# Remove the 3rd and 4th to last lines
+etable_text_cleaned <- 
+  etable_text[-c((length(etable_text) - 5), 
+                 (length(etable_text) - 4))]
+
+# Write the cleaned table back to the same file or a new file
+writeLines(etable_text_cleaned, 
+           etable_path)
+```
+
+## Interaction before and after 2017
+
+We want to see if there is some difference before and after the slight change in the policy
+
+```{r}
+interact <-
+  final_MG
+
+interact <- interact %>% mutate(bef_aft= ifelse(true_date_install>as.Date('2017-05-01') , 1, 0)) #generate the variable before and after May 2017.
+
+interact <- interact %>% 
+  mutate(bef_aft_treat = treat*bef_aft)
+```
+
+### Extraction
+```{r}
+sa_ex_2017 <- 
+  feols(ext ~ treat + bef_aft_treat | ID_34 +  month,
+                    data = interact, cluster = "dto")
+
+reg_list_sa_2017 =
+  list(sa_ex_2017)
+
+# sa_plot_ex_2017 <- 
+#   fixest::coefplot(sa_ex_2017)
+```
+
+
+```{r}
+setFixest_dict(c(ext = "Extraction (kWh)",
+                 ener_iny   = "Injection (kWh)",
+                "ext-ener_iny"  = "Net Effect (kWh)",
+                 ATT  = "Solar Panel Installation", 
+                bef_aft_treat = "Treatment $\\times$ Post 2017", 
+                treat = "Treatment",
+                 ID_34 = "ID",
+                 dto   = "State",
+                 month = "Month", 
+                 year = "Year", 
+                month_plot  = 
+                   "Month of Treatment"), 
+               reset = TRUE)
+
+etable(reg_list_sa_2017,
+         file = paste0(dir$tab,
+                       "sa_results_rob_2017.txt"),
+       replace = TRUE)
+
+etable(reg_list_sa_2017)
+```
+
+```{r}
+# Load the table into R as text
+etable_path <- 
+  paste0(dir$tab, "sa_results_rob_2017.txt")
+
+etable_text <- 
+  readLines(etable_path)
+
+# Remove the 3rd and 4th to last lines
+etable_text_cleaned <- 
+  etable_text[-c((length(etable_text) - 5), 
+                 (length(etable_text) - 4))]
+
+# Write the cleaned table back to the same file or a new file
+writeLines(etable_text_cleaned, 
+           etable_path)
+```
+
+## Estimate the model year-by-year
+
+We add a treat*year variable for each year, to see if there is any difference across years 
+```{r}
+interact_treat <-
+  final_MG
+
+interact_treat <- 
+  interact_treat %>%
+  mutate(install_year = year(true_date_install))
+
+for (y in 2012:2022) {
+  interact_treat <- interact_treat %>% 
+    mutate(year_i       = as.numeric(install_year==y), 
+           treat_2011_i = year_i*treat)
+  
+  names(interact_treat)[(ncol(interact_treat)-1):ncol(interact_treat)] <-
+    paste0(c("year_", "treat_"), y)
+}
+```
+
+### Extraction
+```{r}
+#ID + month
+all_years <- feols(ext  ~ treat_2012 + treat_2013 + treat_2014 + treat_2015 + treat_2016 + treat_2017 + treat_2018 + treat_2019 + treat_2020 + treat_2021 + treat_2022| ID_34 + month, cluster = "dto", data=interact_treat)
+```
+
+
+```{r}
+for (i in 2012:2022) {
+  A = 
+    paste0("treat_",i, " : ", i)
+  
+  setFixest_dict(A)
+}
+
+setFixest_dict(ext = 
+                 "Electricity Extraction (kWh)")
+
+plot_all_years <- 
+  fixest::coefplot(all_years)
+```
+
+```{r}
+null_hypothesis_1 <- c("treat_2012 = treat_2013 ","treat_2012 = treat_2014 ",  "treat_2012= treat_2015", "treat_2012 = treat_2016" ,  "treat_2012= treat_2017" ,"treat_2012 = treat_2018", "treat_2012 = treat_2019" , "treat_2012 = treat_2020" , "treat_2012= treat_2021", "treat_2012= treat_2022")
+linearHypothesis(all_years, null_hypothesis_1)
+
+null_hypothesis_2 <- c("treat_2013 = treat_2014")
+linearHypothesis(all_years, null_hypothesis_2)
+
+null_hypothesis_3 <- c("treat_2013 = treat_2018")
+linearHypothesis(all_years, null_hypothesis_3)
+```
+
+
+### Net Effect
+
+```{r}
+all_years_net <- feols((ext -ener_iny)  ~   treat_2012 + treat_2013 + treat_2014 + treat_2015 + treat_2016 + treat_2017 + treat_2018 + treat_2019 + treat_2020 + treat_2021 + treat_2022| ID_34 + month, cluster = "dto", data=interact_treat)
+summary(all_years_net)
+
+plot_all_years <- 
+  fixest::coefplot(all_years_net)
+```
+
+
+# Clean the Data for Back-of-the-Envelope-Calculation
+
+## CO2 data
+
+Which months I need to download the CO2 data September 2011 to August 2022
+```{r}
+CO2_data <- read_excel(paste0(dir$data, "CO2/CO_R.xls"), 
+                       sheet=1 ,range="A1:U133")
+
+CO2_data <- CO2_data %>% 
+  rename("date" = "date_2")
+
+CO2_data <- CO2_data %>% 
+  mutate(desc_co2 = total_co2) 
+
+final_MG <- final_MG %>%
+  mutate(across(c("year", "month", "day"), 
+                is.numeric))
+
+final_co2 <- merge(final_MG, CO2_data, 
+                   by=c("year", "month", "day", "date"))
+```
+
+Nov 2018 to August 2022
+```{r}
+co2_desc <- CO2_data %>% 
+  filter(date>'2018-10-02')
+
+co2_desc %>% 
+  summarize(mean_co2=mean(co2_desc$desc_co2, na.rm=TRUE),
+            sd_co2=sd(co2_desc$desc_co2, na.rm=TRUE),
+            min_co2=min(co2_desc$desc_co2, na.rm=TRUE),
+            max_co2=max(co2_desc$desc_co2, na.rm=TRUE))
+
+co2_desc2 <- 
+  co2_desc %>% 
+  summarize(sum(desc_co2))
+```
+
+Save the database of co2 for Gurobi:
+```{r}
+save(final_co2, 
+     file=paste0(dir$data,"Gurobi/final_co2.RData"))
+```
+
+# Rebound Plot
+
+```{r}
+rebound_data <- 
+  read_excel(paste0(dir$data,"constructed_data/rebound_graph_data.xlsx"), 
+             sheet=2 ,range="A1:c13")
+```
+
+
+```{r}
+rebound_graph <- 
+  ggplot(data = 
+           rebound_data, aes(x=Months, y=lowerbound, color="4.5 hrs of peak sunlight")) +
+  geom_line(aes(y=upperbound, color="5 hours of peak sunlight"), size = 1) +    
+  geom_line(size = 1) + 
+  theme(text = element_text(size = 15)) + 
+  scale_color_manual(name = "", values = c("4.5 hrs of peak sunlight" = "blue", "5 hours of peak sunlight" = "navy")) + 
+  labs(y = "Consumption (KWh)", x = "Months after the solar panel installation") + 
+  theme(legend.key.size = unit(1, 'cm'),legend.position = "bottom") +
+  scale_x_continuous(breaks = seq(1, 12, 1)) +  
+  ylim(0, 3500)
+
+rebound_graph
+```
+
+```{r}
+ggsave(paste0(dir$fig, "rebound_graph.png"),
+       width = 7, height = 4.5) 
+```

@@ -1,0 +1,541 @@
+Arrange the data of hydro, thermal, wind, solar, biomass, demand, exports and imports.
+Append this data with the main one.
+
+
+First set the working directory
+```{r}
+rm(list=ls())
+
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(readODS)
+
+setwd("~/Net_metering_UY/ADME_electricity_production")
+```
+
+upload the databases:
+
+#2021#
+January
+```{r}
+January_2021 <- read_ods("2021_January.ods", sheet=1 ,range="A3:M747") #upload the database
+
+January_2021 <- January_2021 %>%  separate(Fecha, c("year", "month", "day"), sep="-", remove=FALSE) #separate the data variable into year, month, day, and hour
+January_2021 <- January_2021 %>%  separate(day, c("day", "hour"), sep=" ")
+January_2021 <- January_2021 %>%  separate(hour, c("hour", "min", "sec"), sep=":")
+January_2021 <- January_2021 %>% dplyr::select(-c(6,7)) # eliminate the min and sec columns empty
+
+#Do the same with the exports
+January_2021_X <- read_ods("2021_January.ods", sheet=6 ,range="A3:D747") 
+
+January_2021_X <- January_2021_X %>%  separate(Fecha, c("year", "month", "day"), sep="-", remove=FALSE) 
+January_2021_X <- January_2021_X %>%  separate(day, c("day", "hour"), sep=" ")
+January_2021_X <- January_2021_X %>%  separate(hour, c("hour", "min", "sec"), sep=":")
+January_2021_X <- January_2021_X %>% dplyr::select(-c(1,6,7)) # eliminate the min and sec columns empty
+
+#merge both datasbes
+January_2021 <-  merge(January_2021, January_2021_X, by=c("year", "month", "day", "hour"))
+```
+
+February
+```{r}
+Feb_2021 <- read_ods("2021_Feb.ods", sheet=1 ,range="A3:M675") #upload the database
+
+Feb_2021 <- Feb_2021 %>%  separate(Fecha, c("year", "month", "day"), sep="-", remove=FALSE) 
+Feb_2021 <- Feb_2021 %>%  separate(day, c("day", "hour"), sep=" ")
+Feb_2021 <- Feb_2021 %>%  separate(hour, c("hour", "min", "sec"), sep=":")
+Feb_2021 <- Feb_2021 %>% dplyr::select(-c(6,7)) 
+
+#Do the same with the exports
+Feb_2021_X <- read_ods("2021_Feb.ods", sheet=6 ,range="A3:D675") 
+
+Feb_2021_X <- Feb_2021_X %>%  separate(Fecha, c("year", "month", "day"), sep="-", remove=FALSE) 
+Feb_2021_X <- Feb_2021_X %>%  separate(day, c("day", "hour"), sep=" ")
+Feb_2021_X <- Feb_2021_X %>%  separate(hour, c("hour", "min", "sec"), sep=":")
+Feb_2021_X <- Feb_2021_X %>% dplyr::select(-c(1,6,7))
+#merge both datasbes
+Feb_2021 <-  merge(Feb_2021, Feb_2021_X, by=c("year", "month", "day", "hour"))
+```
+
+March
+```{r}
+March_2021 <- read_ods("2021_March.ods", sheet=1 ,range="A3:M747") #upload the database
+
+March_2021 <- March_2021 %>%  separate(Fecha, c("year", "month", "day"), sep="-", remove=FALSE) 
+March_2021 <- March_2021 %>%  separate(day, c("day", "hour"), sep=" ")
+March_2021 <- March_2021 %>%  separate(hour, c("hour", "min", "sec"), sep=":")
+March_2021 <- March_2021 %>% dplyr::select(-c(6,7)) 
+
+#Do the same with the exports
+March_2021_X <- read_ods("2021_March.ods", sheet=6 ,range="A3:D747") 
+
+March_2021_X <- March_2021_X %>%  separate(Fecha, c("year", "month", "day"), sep="-", remove=FALSE) 
+March_2021_X <- March_2021_X %>%  separate(day, c("day", "hour"), sep=" ")
+March_2021_X <- March_2021_X %>%  separate(hour, c("hour", "min", "sec"), sep=":")
+March_2021_X <- March_2021_X %>% dplyr::select(-c(1,6,7)) 
+
+#merge both datasbes
+March_2021 <-  merge(March_2021, March_2021_X, by=c("year", "month", "day", "hour"))
+```
+
+April
+```{r}
+April_2021 <- read_ods("2021_April.ods", sheet=1 ,range="A3:M723") #upload the database
+
+April_2021 <- April_2021 %>%  separate(Fecha, c("year", "month", "day"), sep="-", remove=FALSE) 
+April_2021 <- April_2021 %>%  separate(day, c("day", "hour"), sep=" ")
+April_2021 <- April_2021 %>%  separate(hour, c("hour", "min", "sec"), sep=":")
+April_2021 <- April_2021 %>% dplyr::select(-c(6,7)) 
+
+#Do the same with the exports
+April_2021_X <- read_ods("2021_April.ods", sheet=6 ,range="A3:D723") 
+
+April_2021_X <- April_2021_X %>%  separate(Fecha, c("year", "month", "day"), sep="-", remove=FALSE) 
+April_2021_X <- April_2021_X %>%  separate(day, c("day", "hour"), sep=" ")
+April_2021_X <- April_2021_X %>%  separate(hour, c("hour", "min", "sec"), sep=":")
+April_2021_X <- April_2021_X %>% dplyr::select(-c(1,6,7)) 
+
+#merge both datasbes
+April_2021 <-  merge(April_2021, April_2021_X, by=c("year", "month", "day", "hour"))
+```
+
+May
+```{r}
+May_2021 <- read_ods("2021_May.ods", sheet=1 ,range="A3:M747") #upload the database
+
+May_2021 <- May_2021 %>%  separate(Fecha, c("year", "month", "day"), sep="-", remove=FALSE) 
+May_2021 <- May_2021 %>%  separate(day, c("day", "hour"), sep=" ")
+May_2021 <- May_2021 %>%  separate(hour, c("hour", "min", "sec"), sep=":")
+May_2021 <- May_2021 %>% dplyr::select(-c(6,7)) 
+
+#Do the same with the exports
+May_2021_X <- read_ods("2021_May.ods", sheet=6 ,range="A3:D747") 
+
+May_2021_X <- May_2021_X %>%  separate(Fecha, c("year", "month", "day"), sep="-", remove=FALSE) 
+May_2021_X <- May_2021_X %>%  separate(day, c("day", "hour"), sep=" ")
+May_2021_X <- May_2021_X %>%  separate(hour, c("hour", "min", "sec"), sep=":")
+May_2021_X <- May_2021_X %>% dplyr::select(-c(1,6,7)) 
+
+#merge both datasbes
+May_2021 <-  merge(May_2021, May_2021_X, by=c("year", "month", "day", "hour"))
+```
+
+June
+```{r}
+June_2021 <- read_ods("2021_June.ods", sheet=1 ,range="A3:M723") #upload the database
+
+June_2021 <- June_2021 %>%  separate(Fecha, c("year", "month", "day"), sep="-", remove=FALSE) 
+June_2021 <- June_2021 %>%  separate(day, c("day", "hour"), sep=" ")
+June_2021 <- June_2021 %>%  separate(hour, c("hour", "min", "sec"), sep=":")
+June_2021 <- June_2021 %>% dplyr::select(-c(6,7)) 
+
+#Do the same with the exports
+June_2021_X <- read_ods("2021_June.ods", sheet=6 ,range="A3:D723") 
+
+June_2021_X <- June_2021_X %>%  separate(Fecha, c("year", "month", "day"), sep="-", remove=FALSE) 
+June_2021_X <- June_2021_X %>%  separate(day, c("day", "hour"), sep=" ")
+June_2021_X <- June_2021_X %>%  separate(hour, c("hour", "min", "sec"), sep=":")
+June_2021_X <- June_2021_X %>% dplyr::select(-c(1,6,7)) 
+
+#merge both datasbes
+June_2021 <-  merge(June_2021, June_2021_X, by=c("year", "month", "day", "hour"))
+```
+
+July
+```{r}
+July_2021 <- read_ods("2021_July.ods", sheet=1 ,range="A3:M747") #upload the database
+
+July_2021 <- July_2021 %>%  separate(Fecha, c("year", "month", "day"), sep="-", remove=FALSE) 
+July_2021 <- July_2021 %>%  separate(day, c("day", "hour"), sep=" ")
+July_2021 <- July_2021 %>%  separate(hour, c("hour", "min", "sec"), sep=":")
+July_2021 <- July_2021 %>% dplyr::select(-c(6,7)) 
+
+#Do the same with the exports
+July_2021_X <- read_ods("2021_July.ods", sheet=6 ,range="A3:D747") 
+
+July_2021_X <- July_2021_X %>%  separate(Fecha, c("year", "month", "day"), sep="-", remove=FALSE) 
+July_2021_X <- July_2021_X %>%  separate(day, c("day", "hour"), sep=" ")
+July_2021_X <- July_2021_X %>%  separate(hour, c("hour", "min", "sec"), sep=":")
+July_2021_X <- July_2021_X %>% dplyr::select(-c(1,6,7)) 
+
+#merge both datasbes
+July_2021 <-  merge(July_2021, July_2021_X, by=c("year", "month", "day", "hour"))
+```
+
+August
+```{r}
+Aug_2021 <- read_ods("2021_August.ods", sheet=1 ,range="A3:M747") #upload the database
+
+Aug_2021 <- Aug_2021 %>%  separate(Fecha, c("year", "month", "day"), sep="-", remove=FALSE) 
+Aug_2021 <- Aug_2021 %>%  separate(day, c("day", "hour"), sep=" ")
+Aug_2021 <- Aug_2021 %>%  separate(hour, c("hour", "min", "sec"), sep=":")
+Aug_2021 <- Aug_2021 %>% dplyr::select(-c(6,7)) 
+
+#Do the same with the exports
+Aug_2021_X <- read_ods("2021_August.ods", sheet=6 ,range="A3:D747") 
+
+Aug_2021_X <- Aug_2021_X %>%  separate(Fecha, c("year", "month", "day"), sep="-", remove=FALSE) 
+Aug_2021_X <- Aug_2021_X %>%  separate(day, c("day", "hour"), sep=" ")
+Aug_2021_X <- Aug_2021_X %>%  separate(hour, c("hour", "min", "sec"), sep=":")
+Aug_2021_X <- Aug_2021_X %>% dplyr::select(-c(1,6,7)) 
+
+#merge both datasbes
+Aug_2021 <-  merge(Aug_2021, Aug_2021_X, by=c("year", "month", "day", "hour"))
+```
+
+September
+```{r}
+Sep_2021 <- read_ods("2021_Sept.ods", sheet=1 ,range="A3:M723") #upload the database
+
+Sep_2021 <- Sep_2021 %>%  separate(Fecha, c("year", "month", "day"), sep="-", remove=FALSE) 
+Sep_2021 <- Sep_2021 %>%  separate(day, c("day", "hour"), sep=" ")
+Sep_2021 <- Sep_2021 %>%  separate(hour, c("hour", "min", "sec"), sep=":")
+Sep_2021 <- Sep_2021 %>% dplyr::select(-c(6,7)) 
+
+#Do the same with the exports
+Sep_2021_X <- read_ods("2021_Sept.ods", sheet=6 ,range="A3:D723") 
+
+Sep_2021_X <- Sep_2021_X %>%  separate(Fecha, c("year", "month", "day"), sep="-", remove=FALSE) 
+Sep_2021_X <- Sep_2021_X %>%  separate(day, c("day", "hour"), sep=" ")
+Sep_2021_X <- Sep_2021_X %>%  separate(hour, c("hour", "min", "sec"), sep=":")
+Sep_2021_X <- Sep_2021_X %>% dplyr::select(-c(1,6,7)) 
+
+#merge both datasbes
+Sep_2021 <-  merge(Sep_2021, Sep_2021_X, by=c("year", "month", "day", "hour"))
+```
+
+October
+```{r}
+Oct_2021 <- read_ods("2021_Oct.ods", sheet=1 ,range="A3:M747") #upload the database
+
+Oct_2021 <- Oct_2021 %>%  separate(Fecha, c("year", "month", "day"), sep="-", remove=FALSE) 
+Oct_2021 <- Oct_2021 %>%  separate(day, c("day", "hour"), sep=" ")
+Oct_2021 <- Oct_2021 %>%  separate(hour, c("hour", "min", "sec"), sep=":")
+Oct_2021 <- Oct_2021 %>% dplyr::select(-c(6,7)) 
+
+#Do the same with the exports
+Oct_2021_X <- read_ods("2021_Oct.ods", sheet=6 ,range="A3:D747") 
+
+Oct_2021_X <- Oct_2021_X %>%  separate(Fecha, c("year", "month", "day"), sep="-", remove=FALSE) 
+Oct_2021_X <- Oct_2021_X %>%  separate(day, c("day", "hour"), sep=" ")
+Oct_2021_X <- Oct_2021_X %>%  separate(hour, c("hour", "min", "sec"), sep=":")
+Oct_2021_X <- Oct_2021_X %>% dplyr::select(-c(1,6,7)) 
+
+#merge both datasbes
+Oct_2021 <-  merge(Oct_2021, Oct_2021_X, by=c("year", "month", "day", "hour"))
+```
+
+November
+```{r}
+Nov_2021 <- read_ods("2021_Nov.ods", sheet=1 ,range="A3:M723") #upload the database
+
+Nov_2021 <- Nov_2021 %>%  separate(Fecha, c("year", "month", "day"), sep="-", remove=FALSE) 
+Nov_2021 <- Nov_2021 %>%  separate(day, c("day", "hour"), sep=" ")
+Nov_2021 <- Nov_2021 %>%  separate(hour, c("hour", "min", "sec"), sep=":")
+Nov_2021 <- Nov_2021 %>% dplyr::select(-c(6,7)) 
+
+#Do the same with the exports
+Nov_2021_X <- read_ods("2021_Nov.ods", sheet=6 ,range="A3:D723") 
+
+Nov_2021_X <- Nov_2021_X %>%  separate(Fecha, c("year", "month", "day"), sep="-", remove=FALSE) 
+Nov_2021_X <- Nov_2021_X %>%  separate(day, c("day", "hour"), sep=" ")
+Nov_2021_X <- Nov_2021_X %>%  separate(hour, c("hour", "min", "sec"), sep=":")
+Nov_2021_X <- Nov_2021_X %>% dplyr::select(-c(1,6,7)) 
+
+#merge both datasbes
+Nov_2021 <-  merge(Nov_2021, Nov_2021_X, by=c("year", "month", "day", "hour"))
+```
+
+December
+```{r}
+Dec_2021 <- read_ods("2021_Dec.ods", sheet=1 ,range="A3:M747") #upload the database
+
+Dec_2021 <- Dec_2021 %>%  separate(Fecha, c("year", "month", "day"), sep="-", remove=FALSE) 
+Dec_2021 <- Dec_2021 %>%  separate(day, c("day", "hour"), sep=" ")
+Dec_2021 <- Dec_2021 %>%  separate(hour, c("hour", "min", "sec"), sep=":")
+Dec_2021 <- Dec_2021 %>% dplyr::select(-c(6,7)) 
+
+#Do the same with the exports
+Dec_2021_X <- read_ods("2021_Dec.ods", sheet=6 ,range="A3:D747") 
+
+Dec_2021_X <- Dec_2021_X %>%  separate(Fecha, c("year", "month", "day"), sep="-", remove=FALSE) 
+Dec_2021_X <- Dec_2021_X %>%  separate(day, c("day", "hour"), sep=" ")
+Dec_2021_X <- Dec_2021_X %>%  separate(hour, c("hour", "min", "sec"), sep=":")
+Dec_2021_X <- Dec_2021_X %>% dplyr::select(-c(1,6,7)) 
+
+#merge both datasbes
+Dec_2021 <-  merge(Dec_2021, Dec_2021_X, by=c("year", "month", "day", "hour"))
+```
+
+#2022#
+January
+```{r}
+January_2022 <- read_ods("2022_January.ods", sheet=1 ,range="A3:M747") #upload the database
+
+January_2022 <- January_2022 %>%  separate(Fecha, c("year", "month", "day"), sep="-", remove=FALSE) #separate the data variable into year, month, day, and hour
+January_2022 <- January_2022 %>%  separate(day, c("day", "hour"), sep=" ")
+January_2022 <- January_2022 %>%  separate(hour, c("hour", "min", "sec"), sep=":")
+January_2022 <- January_2022 %>% dplyr::select(-c(6,7)) # eliminate the min and sec columns empty
+
+#Do the same with the exports
+January_2022_X <- read_ods("2022_January.ods", sheet=6 ,range="A3:D747") 
+
+January_2022_X <- January_2022_X %>%  separate(Fecha, c("year", "month", "day"), sep="-", remove=FALSE) 
+January_2022_X <- January_2022_X %>%  separate(day, c("day", "hour"), sep=" ")
+January_2022_X <- January_2022_X %>%  separate(hour, c("hour", "min", "sec"), sep=":")
+January_2022_X <- January_2022_X %>% dplyr::select(-c(1,6,7)) # eliminate the min and sec columns empty
+
+#merge both datasbes
+January_2022 <-  merge(January_2022, January_2022_X, by=c("year", "month", "day", "hour"))
+```
+
+February
+```{r}
+Feb_2022 <- read_ods("2022_Feb.ods", sheet=1 ,range="A3:M675") #upload the database
+
+Feb_2022 <- Feb_2022 %>%  separate(Fecha, c("year", "month", "day"), sep="-", remove=FALSE) 
+Feb_2022 <- Feb_2022 %>%  separate(day, c("day", "hour"), sep=" ")
+Feb_2022 <- Feb_2022 %>%  separate(hour, c("hour", "min", "sec"), sep=":")
+Feb_2022 <- Feb_2022 %>% dplyr::select(-c(6,7)) 
+
+#Do the same with the exports
+Feb_2022_X <- read_ods("2022_Feb.ods", sheet=6 ,range="A3:D675") 
+
+Feb_2022_X <- Feb_2022_X %>%  separate(Fecha, c("year", "month", "day"), sep="-", remove=FALSE) 
+Feb_2022_X <- Feb_2022_X %>%  separate(day, c("day", "hour"), sep=" ")
+Feb_2022_X <- Feb_2022_X %>%  separate(hour, c("hour", "min", "sec"), sep=":")
+Feb_2022_X <- Feb_2022_X %>% dplyr::select(-c(1,6,7))
+#merge both datasbes
+Feb_2022 <-  merge(Feb_2022, Feb_2022_X, by=c("year", "month", "day", "hour"))
+```
+
+March
+```{r}
+March_2022 <- read_ods("2022_March.ods", sheet=1 ,range="A3:M747") #upload the database
+
+March_2022 <- March_2022 %>%  separate(Fecha, c("year", "month", "day"), sep="-", remove=FALSE) 
+March_2022 <- March_2022 %>%  separate(day, c("day", "hour"), sep=" ")
+March_2022 <- March_2022 %>%  separate(hour, c("hour", "min", "sec"), sep=":")
+March_2022 <- March_2022 %>% dplyr::select(-c(6,7)) 
+
+#Do the same with the exports
+March_2022_X <- read_ods("2022_March.ods", sheet=6 ,range="A3:D747") 
+
+March_2022_X <- March_2022_X %>%  separate(Fecha, c("year", "month", "day"), sep="-", remove=FALSE) 
+March_2022_X <- March_2022_X %>%  separate(day, c("day", "hour"), sep=" ")
+March_2022_X <- March_2022_X %>%  separate(hour, c("hour", "min", "sec"), sep=":")
+March_2022_X <- March_2022_X %>% dplyr::select(-c(1,6,7)) 
+
+#merge both datasbes
+March_2022 <-  merge(March_2022, March_2022_X, by=c("year", "month", "day", "hour"))
+```
+
+April
+```{r}
+April_2022 <- read_ods("2022_April.ods", sheet=1 ,range="A3:M723") #upload the database
+
+April_2022 <- April_2022 %>%  separate(Fecha, c("year", "month", "day"), sep="-", remove=FALSE) 
+April_2022 <- April_2022 %>%  separate(day, c("day", "hour"), sep=" ")
+April_2022 <- April_2022 %>%  separate(hour, c("hour", "min", "sec"), sep=":")
+April_2022 <- April_2022 %>% dplyr::select(-c(6,7)) 
+
+#Do the same with the exports
+April_2022_X <- read_ods("2022_April.ods", sheet=6 ,range="A3:D723") 
+
+April_2022_X <- April_2022_X %>%  separate(Fecha, c("year", "month", "day"), sep="-", remove=FALSE) 
+April_2022_X <- April_2022_X %>%  separate(day, c("day", "hour"), sep=" ")
+April_2022_X <- April_2022_X %>%  separate(hour, c("hour", "min", "sec"), sep=":")
+April_2022_X <- April_2022_X %>% dplyr::select(-c(1,6,7)) 
+
+#merge both datasbes
+April_2022 <-  merge(April_2022, April_2022_X, by=c("year", "month", "day", "hour"))
+```
+
+May
+```{r}
+May_2022 <- read_ods("2022_May.ods", sheet=1 ,range="A3:M747") #upload the database
+
+May_2022 <- May_2022 %>%  separate(Fecha, c("year", "month", "day"), sep="-", remove=FALSE) 
+May_2022 <- May_2022 %>%  separate(day, c("day", "hour"), sep=" ")
+May_2022 <- May_2022 %>%  separate(hour, c("hour", "min", "sec"), sep=":")
+May_2022 <- May_2022 %>% dplyr::select(-c(6,7)) 
+
+#Do the same with the exports
+May_2022_X <- read_ods("2022_May.ods", sheet=6 ,range="A3:D747") 
+
+May_2022_X <- May_2022_X %>%  separate(Fecha, c("year", "month", "day"), sep="-", remove=FALSE) 
+May_2022_X <- May_2022_X %>%  separate(day, c("day", "hour"), sep=" ")
+May_2022_X <- May_2022_X %>%  separate(hour, c("hour", "min", "sec"), sep=":")
+May_2022_X <- May_2022_X %>% dplyr::select(-c(1,6,7)) 
+
+#merge both datasbes
+May_2022 <-  merge(May_2022, May_2022_X, by=c("year", "month", "day", "hour"))
+```
+
+June
+```{r}
+June_2022 <- read_ods("2022_June.ods", sheet=1 ,range="A3:M723") #upload the database
+
+June_2022 <- June_2022 %>%  separate(Fecha, c("year", "month", "day"), sep="-", remove=FALSE) 
+June_2022 <- June_2022 %>%  separate(day, c("day", "hour"), sep=" ")
+June_2022 <- June_2022 %>%  separate(hour, c("hour", "min", "sec"), sep=":")
+June_2022 <- June_2022 %>% dplyr::select(-c(6,7)) 
+
+#Do the same with the exports
+June_2022_X <- read_ods("2022_June.ods", sheet=6 ,range="A3:D723") 
+
+June_2022_X <- June_2022_X %>%  separate(Fecha, c("year", "month", "day"), sep="-", remove=FALSE) 
+June_2022_X <- June_2022_X %>%  separate(day, c("day", "hour"), sep=" ")
+June_2022_X <- June_2022_X %>%  separate(hour, c("hour", "min", "sec"), sep=":")
+June_2022_X <- June_2022_X %>% dplyr::select(-c(1,6,7)) 
+
+#merge both datasbes
+June_2022 <-  merge(June_2022, June_2022_X, by=c("year", "month", "day", "hour"))
+```
+
+July
+```{r}
+July_2022 <- read_ods("2022_July.ods", sheet=1 ,range="A3:M747") #upload the database
+
+July_2022 <- July_2022 %>%  separate(Fecha, c("year", "month", "day"), sep="-", remove=FALSE) 
+July_2022 <- July_2022 %>%  separate(day, c("day", "hour"), sep=" ")
+July_2022 <- July_2022 %>%  separate(hour, c("hour", "min", "sec"), sep=":")
+July_2022 <- July_2022 %>% dplyr::select(-c(6,7)) 
+
+#Do the same with the exports
+July_2022_X <- read_ods("2022_July.ods", sheet=6 ,range="A3:D747") 
+
+July_2022_X <- July_2022_X %>%  separate(Fecha, c("year", "month", "day"), sep="-", remove=FALSE) 
+July_2022_X <- July_2022_X %>%  separate(day, c("day", "hour"), sep=" ")
+July_2022_X <- July_2022_X %>%  separate(hour, c("hour", "min", "sec"), sep=":")
+July_2022_X <- July_2022_X %>% dplyr::select(-c(1,6,7)) 
+
+#merge both datasbes
+July_2022 <-  merge(July_2022, July_2022_X, by=c("year", "month", "day", "hour"))
+```
+
+August
+```{r}
+Aug_2022 <- read_ods("2022_August.ods", sheet=1 ,range="A3:M747") #upload the database
+
+Aug_2022 <- Aug_2022 %>%  separate(Fecha, c("year", "month", "day"), sep="-", remove=FALSE) 
+Aug_2022 <- Aug_2022 %>%  separate(day, c("day", "hour"), sep=" ")
+Aug_2022 <- Aug_2022 %>%  separate(hour, c("hour", "min", "sec"), sep=":")
+Aug_2022 <- Aug_2022 %>% dplyr::select(-c(6,7)) 
+
+#Do the same with the exports
+Aug_2022_X <- read_ods("2022_August.ods", sheet=6 ,range="A3:D747") 
+
+Aug_2022_X <- Aug_2022_X %>%  separate(Fecha, c("year", "month", "day"), sep="-", remove=FALSE) 
+Aug_2022_X <- Aug_2022_X %>%  separate(day, c("day", "hour"), sep=" ")
+Aug_2022_X <- Aug_2022_X %>%  separate(hour, c("hour", "min", "sec"), sep=":")
+Aug_2022_X <- Aug_2022_X %>% dplyr::select(-c(1,6,7)) 
+
+#merge both datasbes
+Aug_2022 <-  merge(Aug_2022, Aug_2022_X, by=c("year", "month", "day", "hour"))
+```
+
+
+Append all 2021
+```{r}
+final_2021 <- rbind(January_2021, Feb_2021, March_2021, April_2021, May_2021, June_2021, July_2021, Aug_2021, Sep_2021, Oct_2021, Nov_2021, Dec_2021)
+```
+
+Append all 2022
+```{r}
+final_2022 <- rbind(January_2022, Feb_2022, March_2022, April_2022, May_2022, June_2022, July_2022, Aug_2022)
+```
+
+
+Eliminate the extra DF
+```{r}
+rm(January_2021_X, Feb_2021_X, March_2021_X, April_2021_X, May_2021_X, June_2021_X, July_2021_X, Aug_2021_X, Sep_2021_X, Oct_2021_X, Nov_2021_X, Dec_2021_X, January_2022_X, Feb_2022_X, March_2022_X, April_2022_X, May_2022_X, June_2022_X, July_2022_X, Aug_2022_X, January_2021, Feb_2021, March_2021, April_2021, May_2021, June_2021, July_2021, Aug_2021, Sep_2021, Oct_2021, Nov_2021, Dec_2021, January_2022, Feb_2022, March_2022, April_2022, May_2022, June_2022, July_2022, Aug_2022)
+```
+
+Generate total imports, exports and hydro
+```{r}
+final_2021 <- final_2021 %>% rename("sg" = "Salto Grande")
+final_2021 <- final_2021 %>% mutate(hydro = sg + Palmar + Bonete + Baygorria)
+final_2021 <- final_2021 %>% mutate(total_imports = Imp.Arg + Imp.Br.Riv + Imp.Br.Mel)
+final_2021 <- final_2021 %>% mutate(total_exports = Exp_Intercon_BR_MELO + Exp_Intercon_BR_RIVERA + Exp_Intercon_ARG)
+
+final_2022 <- final_2022 %>% rename("sg" = "Salto Grande")
+final_2022 <- final_2022 %>% mutate(hydro = sg + Palmar + Bonete + Baygorria)
+final_2022 <- final_2022 %>% mutate(total_imports = Imp.Arg + Imp.Br.Riv + Imp.Br.Mel)
+final_2022 <- final_2022 %>% mutate(total_exports = Exp_Intercon_BR_MELO + Exp_Intercon_BR_RIVERA + Exp_Intercon_ARG)
+
+```
+
+
+change the names:
+```{r}
+final_2021 <- final_2021 %>% rename("wind"="Eólica", "solar"="Solar", "thermal"="Térmica", "biomass"="Biomasa", "demand"="Demanda")
+
+final_2022 <- final_2022 %>% rename("wind"="Eólica", "solar"="Solar", "thermal"="Térmica", "biomass"="Biomasa", "demand"="Demanda")
+```
+
+Select only those variables that I need and convert all the year, month, day, hour in numbers
+```{r}
+final_2021 <- final_2021 %>% dplyr::select(-c(5, 6, 7, 8, 9, 14, 15, 16, 18, 19, 20))
+final_2022 <- final_2022 %>% dplyr::select(-c(5, 6, 7, 8, 9, 14, 15, 16, 18, 19, 20))
+
+final_2021$year <- as.numeric(final_2021$year)
+final_2021$month <- as.numeric(final_2021$month)
+final_2021$day <- as.numeric(final_2021$day)
+final_2021$hour <- as.numeric(final_2021$hour)
+
+final_2022$year <- as.numeric(final_2022$year)
+final_2022$month <- as.numeric(final_2022$month)
+final_2022$day <- as.numeric(final_2022$day)
+final_2022$hour <- as.numeric(final_2022$hour)
+
+```
+
+Save the databases:
+```{r}
+save(final_2021, file="~/Net_metering_UY/ADME_electricity_production/final_2021.RData")
+save(final_2022, file="~/Net_metering_UY/ADME_electricity_production/final_2022.RData")
+```
+
+Arrange the Demand issue.
+Problem: CTM - Salto Grande, if it is negative, then it goes to exports, so it is computed double - in hydro production and in exports.
+Thus, I need to sum it positive twice (once from the hydro production, and once from the exports)
+(T + H + B + W + S + IM + Microgenerators = D + EX)
+So I will get the year, month, day, hour, and Negative CTM
+
+
+year 2018:
+```{r}
+setwd("~/Uruguay renewable energy/Renewable-Energy-UY-main/Renewable-Energy-UY-main/R")
+UY_2018 <- read_excel("gpf 2018.xlsx", sheet=1 ,range="A4:N8764")
+UY_2019 <- read_excel("gpf 2019.xlsx", sheet=1 ,range="A4:N8764")
+UY_2020 <- read_excel("gpf 2020.xlsx", sheet=1 ,range="A4:N8788")
+UY_2021 <- read_excel("gpf 2021 01_06.xlsx", sheet=1 ,range="A4:N3652")
+```
+
+
+Append the data:
+```{r}
+final_data_CTM <- rbind(UY_2019, UY_2020, UY_2021, UY_2018)
+final_data_CTM <- final_data_CTM %>% dplyr::select("Fecha", "CTM-UR")
+final_data_CTM <- final_data_CTM %>% rename("CTM"="CTM-UR")
+final_data_CTM <- final_data_CTM %>% filter(CTM<0)
+```
+
+```{r}
+final_data_CTM <- final_data_CTM %>%  separate(Fecha, c("year", "month", "day"), sep="-", remove=TRUE)
+final_data_CTM <- final_data_CTM %>%  separate(day, c("day", "hour"), sep=" ")
+final_data_CTM <- final_data_CTM %>%  separate(hour, c("hour", "min", "sec"), sep=":")
+final_data_CTM <- final_data_CTM %>% dplyr::select(-c(5,6)) # eliminate the min and sec columns empty
+
+final_data_CTM$hour <- as.numeric(final_data_CTM$hour)
+final_data_CTM$day <- as.numeric(final_data_CTM$day)
+final_data_CTM$month <- as.numeric(final_data_CTM$month)
+final_data_CTM$year <- as.numeric(final_data_CTM$year)
+```
+
+```{r}
+save(final_data_CTM, file="C:/Users/natal/OneDrive/Documents/Net_metering_UY/Gurobi/CTM_Gurobi.RData")
+```
+

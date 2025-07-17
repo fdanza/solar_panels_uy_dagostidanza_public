@@ -1,0 +1,1463 @@
+---
+title:    "Back-of-the-Envelope Calculations"
+subtitle: "CO2 Reduction + Value to Consumers + Gurobi, Batteries' Exercise"
+authors:  "Natalia D'Agosti & Facundo Danza" 
+---
+
+# Load the packages
+
+First, we load the necessary pacakges:
+```{r}
+rm(list=ls())
+gc()
+```
+
+Second, we load the packages
+```{r}
+# install.packages("pacman")
+pacman::p_load(tidyverse, lubridate, readxl, 
+               sandwich, arm, fixest, gapminder, car, 
+               gurobi, Matrix, boot)
+#library(margins)
+```
+
+Third, we set the plotting theme:
+```{r}
+theme_set(theme_bw())
+```
+
+Then, we load the directories:
+```{r}
+dir        <- list()
+dir$root   <- dirname(getwd())
+dir$data   <- paste0(dirname(getwd()), "/data/")
+dir$fig    <- paste0(dirname(getwd()), "/figures/")
+dir$tab    <- paste0(dirname(getwd()), "/tables/")
+```
+
+
+# Back-of-the-Envelope Calculations
+
+In this code, we do the CO2 emissions reduction calculations, the value to consumers calculation, and the minimization problem on emissions. We use Gurobi for the latter.  
+
+## Clean Data
+
+First, we arrange the hydro, thermal, biomass, wind, solar, demand, imports and exports data
+```{r}
+final_energy <- 
+  read.csv(paste0(dir$data,"Gurobi/final_all.csv")) # this is till the year 2020
+
+final_energy <- final_energy %>% 
+  dplyr::select("year", "month", "day", "hour", "wind", "solar", "biomass", "thermal", "hydro", "demand", "total_exports", "total_imports") #eliminate the congestion variable that do not play a role
+```
+
+Then, we load the the year 2021 and 2022. This was done is the code `2.0.1_clean_electricity_gurobi.Rmd`
+```{r}
+load(paste0(dir$data, 
+            "Gurobi/ADME_electricity_production/final_2021.RData"))
+
+final_2021 <- final_2021 %>% 
+  mutate (total_exports=-total_exports)
+
+load(paste0(dir$data, 
+            "Gurobi/ADME_electricity_production/final_2022.RData"))
+
+final_2022 <- final_2022 %>% 
+  mutate (total_exports=-total_exports)
+
+final_production <- 
+  rbind(final_energy, final_2021, final_2022) 
+
+rm(final_energy, final_2021, final_2022) #Drop the dataframes that we dont need anymore
+```
+
+We add the electricity injected data of electricity into the grid.
+
+We have the total electricity production of the month for each hour. The R data we use is  `data/Gurobi/final_elec_inyected_normal.RData`, which comes from the R-code `2.0.2_arrange_injection_data_for_Gurobi.Rmd`
+
+*Caution: the number is the same for every hour within a month, and is the total production, not the hourly production*
+```{r}
+load(paste0(dir$data,
+            "Gurobi/final_elec_inyected_normal.RData"))
+```
+
+## CO2 Factor
+
+In this section, we calculate the CO2 factor per hour. 
+
+First, we add the CO2 emissions data. This was partially done in R-code `2.0.3_arrange_co2_data_for_Gurobi.Rmd`
+
+*Caution: CO2 emissions is the total per month, and is the same number for all the hours of all the days*
+```{r}
+load(paste0(dir$data,
+            "/Gurobi/final_co2_G.RData"))
+
+final_co2_G <- 
+  final_co2_G %>% 
+  dplyr::select(year, month, day, hour, everything()) #change the order of columns
+```
+
+
+```{r}
+#merge it with the other variable:
+final_co2_G <- merge(final_co2_G, final_production, 
+                     by=c("year", "month", "day", "hour"))
+
+rm(final_production)
+```
+
+```{r}
+final_co2_G_plot = 
+  final_co2_G %>% 
+  pivot_longer(c("wind", "thermal", "solar", "biomass", "hydro", "demand"), 
+               values_to = "production_gwh", 
+               names_to  = "production_source") 
+```
+
+```{r}
+final_co2_G_plot %>% 
+  filter(production_source!= "demand") %>%
+  group_by(hour, production_source) %>% 
+  summarise(production_avg = mean(production_gwh)) %>%
+  ggplot(aes(x = hour, y = production_avg, fill = production_source)) + 
+  geom_area() + 
+  labs(x = "Hour", 
+       y = "Electricity Production (MWh)") + 
+  ggtitle("Electricity Production by Source") +
+  theme(legend.title = element_blank() , 
+        legend.position = "bottom") +
+    scale_fill_manual(
+      values = c(
+      "biomass" = "#E69F00",
+      "thermal" = "#D73027",
+      "hydro" = "#0072B2",
+      "wind" = "#66C2A5",
+      "solar" = "#F0E442"))
+```
+
+```{r}
+ggsave(paste0(dir$fig,"prod_plot.png"), 
+              width = 7, height = 4.5)
+```
+
+```{r}
+final_co2_G_plot %>%
+  filter(production_source == "solar" & hour > 4 & hour < 22) %>%
+  group_by(hour, production_source) %>% 
+  summarise(production_avg = mean(production_gwh)) %>%
+  ggplot(aes(x = hour, y = production_avg)) + 
+#  geom_point(color = "#66C2A5", linewidth = 1.2) + 
+  geom_line(color = "yellow3") +
+  labs(x = "Hour", 
+       y = "Electricity Production (MWh)") + 
+  ggtitle("Solar Electricity Production") +
+  theme(legend.title = element_blank() , 
+        legend.position = "bottom")
+```
+
+
+```{r}
+ggsave(paste0(dir$fig,"prod_plot2.png"), 
+              width = 7, height = 4.5)
+```
+
+```{r}
+final_co2_G_plot %>%
+  filter(production_source == "demand") %>%
+  group_by(hour, production_source) %>% 
+  summarise(production_avg = mean(production_gwh)) %>%
+  ggplot(aes(x = hour, y = production_avg)) + 
+#  geom_point(color = "#66C2A5", linewidth = 1.2) + 
+  geom_point(size=2) +
+  labs(x = "Hour", 
+       y = "Electricity Demand (MWh)") + 
+  ggtitle("Electricity Demand") +
+  theme(legend.title = element_blank() , 
+        legend.position = "bottom")
+```
+
+
+```{r}
+ggsave(paste0(dir$fig,"demand_plot.png"), 
+              width = 7, height = 4.5)
+```
+
+
+We calculate the hourly emissions. The process goes as follows. First, we calculate the total number of days and the total production of thermal in a month. Then, we calculate the amount of CO2 emissions per unit of thermal production. Lastly, we adjust the hourly CO2 emissions factor to reflect the total amount of thermal production was needed that day. For more details, please refer to the appendix of the paper.
+```{r}
+final_co2_G <- final_co2_G %>% 
+  group_by(year, month) %>% 
+  mutate(max_day = max(day), 
+         total_thermal_month = 
+           sum(thermal)) %>% 
+  ungroup() %>% 
+  mutate(co2_per_unit = 
+           desc_co2/total_thermal_month) %>%
+  group_by(year, month, day) %>% 
+  mutate(total_thermal_day = 
+           sum(thermal), 
+         total_thermal_day_square = 
+           sum(thermal^2)) %>%
+  ungroup() %>% 
+  mutate(ponderator = 
+           thermal/total_thermal_day,
+         scale_pond = 
+           total_thermal_day^2/total_thermal_day_square,
+         perc_thermal = 
+           ifelse(total_thermal_day == 0, 
+                  0,
+                  scale_pond*ponderator*co2_per_unit))
+```
+
+We check that the hourly sum of the CO2 emissions reflects the CO2 emissions of the month below:
+```{r}
+# final_co2_G_check = 
+#   final_co2_G %>%
+#   filter(month == 11 & year == 2018) %>% 
+#   summarise(co2_total_factor = 
+#               sum(perc_thermal*thermal, na.rm = T), 
+#             co2_total     = mean(desc_co2))
+```
+
+
+We finally add the electricity injected into the grid to hour main database:
+```{r}
+final_gurobi <- 
+  merge(final_elec_inyected, final_co2_G, 
+        by=c("year", "month", "day", "hour")) 
+#Merge the electricity injected to the grid with the production of sources
+
+extraction_gurobi = 
+  read_csv(paste0(dir$data,"constructed_data/n_of_mg.csv" ), 
+           col_types = cols())
+
+final_gurobi = 
+  final_gurobi %>%
+  left_join(extraction_gurobi, by = c("month", "year"))
+```
+
+We calculate the daily injection and extraction-reduction implied from our estimation (our data is in kWh while the thermal is in GWh - we adjust that)
+```{r}
+final_gurobi = 
+  final_gurobi %>%
+  mutate(ener_ext  = treat_effect_ext*count_mg, 
+         ener_iny_a = treat_effect_inj*count_mg) %>%
+  mutate(across(starts_with("ener_"), 
+                ~ .x/1000))
+```
+
+
+```{r}
+rm(final_co2_G, 
+   final_elec_inyected, 
+   extraction_gurobi) # eliminate the databases we do not need
+```
+
+
+## CO2 emissions - Back-of-the-Envolpe Calculation
+
+We need to define the distribution within a hour of solar production for the microgenerated solar production. 
+
+We assume that the daily solar is proportionally distributed as the total solar production is. That is, for example, if 10 % of the total solar production was produced at 12 PM, we assume that 10% of microgenerated solar production was produced at 12PM.
+```{r}
+final_gurobi = 
+  final_gurobi %>%
+  group_by(month, year) %>%
+  mutate(total_solar = sum(solar)) %>% 
+  ungroup() %>% 
+  mutate(elect_inj_hourly = 
+           ener_iny*solar/total_solar, 
+         elect_inj_hourly_a = 
+           ener_ext*solar/total_solar,
+         elect_ext_hourly = 
+           ener_ext*solar/total_solar)
+
+back_of_envolpe_co2 = 
+  final_gurobi
+```
+
+
+### Total CO2 emissions
+
+We can now calculate the monthly CO2 emissions at baseline. We simply take the mean over the CO2 emissions, which are a monthly level already.
+```{r}
+total_co2_emissions_statuo_quo = 
+  back_of_envolpe_co2 %>% 
+  group_by(month, year) %>%
+  summarise(total_co2_emissions = 
+              mean(desc_co2, na.rm = T)) 
+
+# %>% 
+#   ungroup() %>% 
+#   summarise(total_co2 = 
+#               sum(total_co2_emissions, na.rm = T), 
+#             mean_co2 = 
+#               mean(total_co2_emissions, na.rm = T))
+# 
+# print("")
+# print(paste0("Total CO2 ", scales::comma(total_co2_emissions_statuo_quo$total_co2)))
+# print(paste0("Average CO2 ", scales::comma(total_co2_emissions_statuo_quo$mean_co2)))
+```
+
+
+### Subsitution of Thermal Only
+
+For the first calculation, we assume that micrognerated solar production substitutes thermal production exclusively (when there is some thermal production to begin with)
+```{r}
+total_co2_reduction = back_of_envolpe_co2 %>% 
+  mutate(max_elect_inj_hourly = 
+           ifelse(thermal > 0, 
+                  elect_inj_hourly, 
+                  0)) %>%
+  group_by(month, year) %>%
+  summarise(total_co2_reduction = 
+              sum(max_elect_inj_hourly*perc_thermal), 
+            count_mg = mean(count_mg))
+
+# scales::comma(total_co2_reduction$total_co2_reduction)
+```
+
+We can then calculate the CO2 reduction associated with the policy:
+```{r}
+total_reduction_month = 
+  total_co2_reduction %>%
+  left_join(total_co2_emissions_statuo_quo, 
+            by = c("month", "year")) %>%
+  mutate(reduction_co2 = total_co2_reduction/total_co2_emissions) %>%
+  ungroup()
+
+total_reduction_month %>% 
+  summarise(reduction_co2 = mean(reduction_co2))
+```
+
+
+#### Alternative Measure
+
+Alternatively, we can deduce the injection increase using our estimates. That is:
+```{r}
+total_co2_reduction = back_of_envolpe_co2 %>% 
+  mutate(max_elect_inj_hourly = 
+           ifelse(thermal > 0, 
+                  elect_inj_hourly_a, 
+                  0)) %>%
+  group_by(month, year) %>%
+  summarise(total_co2_reduction = sum(max_elect_inj_hourly*perc_thermal))
+
+# scales::comma(total_co2_reduction$total_co2_reduction)
+```
+
+```{r}
+total_reduction_month = 
+  total_co2_reduction %>%
+  left_join(total_co2_emissions_statuo_quo, 
+            by = c("month", "year")) %>%
+  mutate(reduction_co2 = 
+           total_co2_reduction/total_co2_emissions) %>%
+  ungroup()
+
+total_reduction_month %>% 
+  summarise(reduction_co2 = mean(reduction_co2))
+```
+
+#### Including Extraction
+
+As before, we can include the reduction in extraction using our estimates, which give us:
+```{r}
+total_co2_reduction = back_of_envolpe_co2 %>% 
+  mutate(max_elect_hourly = 
+           ifelse(thermal > 0, 
+                  elect_inj_hourly + elect_ext_hourly, 
+                  0)) %>%
+  group_by(month, year) %>%
+  summarise(total_co2_reduction = 
+              sum(max_elect_hourly*perc_thermal))
+```
+
+```{r}
+total_reduction_month = 
+  total_co2_reduction %>%
+  left_join(total_co2_emissions_statuo_quo, 
+            by = c("month", "year")) %>%
+  mutate(reduction_co2 = total_co2_reduction/total_co2_emissions) %>%
+  ungroup()
+
+total_reduction_month %>% 
+  summarise(reduction_co2 = mean(reduction_co2))
+```
+
+
+### Subtitution of Thermal Proportionally
+
+Then, we assume that it substitutes thermal proportionally to what thermal represents in total energy production. 
+
+For that, we need to calculate the proportion of thermal first:
+```{r}
+back_of_envolpe_co2 = 
+  back_of_envolpe_co2 %>% 
+  mutate(thermal_perc_total = thermal/(thermal + wind + 
+                                         solar + biomass + hydro))
+```
+
+Then, we can calculate how much does it substitutes:
+```{r}
+total_co2_reduction = back_of_envolpe_co2 %>% 
+  group_by(month, year) %>%
+    mutate(max_elect_inj_hourly = 
+           ifelse(thermal > 0, 
+                  elect_inj_hourly, 
+                  0)) %>% 
+  summarise(total_co2_reduction =
+              sum(max_elect_inj_hourly*perc_thermal*thermal_perc_total))
+
+#scales::comma(total_co2_reduction$total_co2_reduction)
+```
+
+```{r}
+total_reduction_month = 
+  total_co2_reduction %>%
+  left_join(total_co2_emissions_statuo_quo, 
+            by = c("month", "year")) %>%
+  mutate(reduction_co2 = total_co2_reduction/total_co2_emissions) %>%
+  ungroup()
+
+total_reduction_month %>% 
+  summarise(reduction_co2 = mean(reduction_co2))
+```
+
+#### Alternative Approach
+
+Then, we can calculate how much does it substitutes if we use our estimates instead:
+```{r}
+total_co2_reduction = back_of_envolpe_co2 %>% 
+  mutate(max_elect_hourly = 
+           ifelse(thermal > 0, 
+                  elect_inj_hourly_a, 
+                  0)) %>%
+  group_by(month, year) %>%
+  summarise(total_co2_reduction =
+              sum(max_elect_hourly*perc_thermal*thermal_perc_total))
+
+#scales::comma(total_co2_reduction$total_co2_reduction)
+```
+
+```{r}
+total_reduction_month = 
+  total_co2_reduction %>%
+  left_join(total_co2_emissions_statuo_quo, 
+            by = c("month", "year")) %>%
+  mutate(reduction_co2 = total_co2_reduction/total_co2_emissions) %>%
+  ungroup()
+
+total_reduction_month %>% 
+  summarise(reduction_co2 = mean(reduction_co2))
+```
+
+#### Including Extraction
+
+Lastly, we can calculate how much does it substitutes if we include extraction-reduction:
+```{r}
+total_co2_reduction = back_of_envolpe_co2 %>% 
+  mutate(max_elect_hourly = 
+           ifelse(thermal > 0, 
+                  elect_inj_hourly + elect_ext_hourly, 
+                  0)) %>%
+  group_by(month, year) %>%
+  summarise(total_co2_reduction =
+              sum(max_elect_hourly*perc_thermal*thermal_perc_total))
+
+#scales::comma(total_co2_reduction$total_co2_reduction)
+```
+
+```{r}
+total_reduction_month = 
+  total_co2_reduction %>%
+  left_join(total_co2_emissions_statuo_quo, 
+            by = c("month", "year")) %>%
+  mutate(reduction_co2 = total_co2_reduction/total_co2_emissions) %>%
+  ungroup()
+
+total_reduction_month %>% 
+  summarise(reduction_co2 = mean(reduction_co2))
+```
+
+## Value to Firms - Back of the Envelope Calculations
+
+First, we load the price evolution for Medium-Size Consumers
+```{r}
+evolution_prices = 
+  read_csv(paste0(dir$data, "constructed_data/price_long_mc1.csv"), 
+           col_types = cols()) %>% 
+  filter(variable %in% c("Horas Punta", "Horas Llano", 
+                         "Horas Valle"))
+```
+
+### Clean the data
+```{r}
+evolution_prices_round = 
+  evolution_prices %>% 
+  filter(variable %in% c("Horas Punta")) %>%
+  tidyr::complete(date=seq(min(date), max(date), by="1 day")) %>% 
+  arrange(date)
+```
+
+```{r}
+for (i in 2:nrow(evolution_prices_round)) {
+  if (is.na(evolution_prices_round$prices[i]))
+    evolution_prices_round$prices[i] <-
+      evolution_prices_round$prices[i-1]
+}
+```
+
+```{r}
+evolution_prices_round = 
+  evolution_prices_round %>%
+  mutate(variable = NULL, 
+         unit     = "$/kWh")
+
+names(evolution_prices_round)[2:3] <-
+  paste0(names(evolution_prices_round)[2:3], "_Punta")
+
+evolution_prices_all =
+  evolution_prices_round
+```
+
+```{r}
+for (j in c("Llano", "Valle")) {
+  evolution_prices_round = 
+  evolution_prices %>% 
+  filter(variable %in% paste0("Horas ",j)) %>%
+  tidyr::complete(date=seq(min(date), max(date), by="1 day")) %>% 
+  arrange(date)
+
+for (i in 2:nrow(evolution_prices_round)) {
+  if (is.na(evolution_prices_round$prices[i]))
+    evolution_prices_round$prices[i] <-
+      evolution_prices_round$prices[i-1]
+}
+
+evolution_prices_round = 
+  evolution_prices_round %>%
+  mutate(variable = NULL, 
+         unit     = "$/kWh")
+
+names(evolution_prices_round)[2:3] <-
+  paste0(names(evolution_prices_round)[2:3], "_", j)
+
+evolution_prices_all = 
+  evolution_prices_all %>%
+  left_join(evolution_prices_round, by = "date")
+}
+
+evolution_prices_all = 
+  evolution_prices_all %>%
+  mutate(year     = year(date), 
+         month    = month(date), 
+         day      = day(date))
+```
+
+```{r}
+evolution_prices_all_long = 
+  evolution_prices_all %>%
+  dplyr::select(starts_with("prices"), date) %>%
+  pivot_longer(starts_with("prices_"), 
+               values_to = "prices", 
+               names_to = "rate", 
+               names_prefix = "prices_")
+```
+
+```{r}
+evolution_prices_all_long %>%
+  mutate(Rate = case_when(rate == "Punta" ~ "High Demand Hours", 
+                          rate == "Llano" ~ "Medium Demand Hours", 
+                          rate == "Valle" ~ "Low Demand Hours")) %>%
+  ggplot(aes(x = date, 
+             y = prices, 
+             color = Rate)) +
+  geom_line() +
+# scale_x_discrete(breaks = x_label) +
+  labs(x = "Date", 
+       y = "Price ($/Kwh)") + 
+  ggtitle("Evolution of Prices", 
+          subtitle = "Firms - Medium-Size Consumer") +
+  theme(legend.title = element_blank() , 
+        legend.position = "bottom")
+```
+
+```{r}
+ggsave(paste0(dir$fig,"uy_price_mc1.png"),
+       width = 6, height = 4.5)
+```
+
+### IPC
+```{r}
+ipc_uruguay = 
+  read_excel(paste0(dir$data, 
+                    "UTE/IPC general_Total Pais_Montevideo_Interior_base 2022.xlsx"))
+```
+
+```{r}
+names(ipc_uruguay) <- 
+  c("year", "month", 
+    "ipc", 
+    "ipc_mdeo",
+    "ipc_rest")
+
+ipc_uruguay = 
+  ipc_uruguay %>%
+  mutate(across(
+    starts_with("ipc_"),
+         as.numeric))
+```
+
+## Merge data
+```{r}
+evolution_prices_all = 
+  evolution_prices_all %>%
+  left_join(ipc_uruguay, by = c("month", "year")) %>%
+  mutate(across(starts_with("prices_"), 
+                ~ .x/(ipc/100),
+                .names = "{.col}_adj"))
+```
+
+### Only injection
+```{r}
+total_savings = 
+  back_of_envolpe_co2 %>% 
+  left_join(evolution_prices_all, 
+            by = c("day", "month", "year")) %>%
+  mutate(price_kwh_adj = case_when(hour >= 0 & hour <= 7 ~ 
+                                 prices_Valle_adj,
+                               hour >= 18 & hour <= 22 ~ 
+                                 prices_Punta_adj, 
+                               TRUE ~ prices_Llano_adj))
+```
+
+
+```{r}
+total_savings = 
+  total_savings %>%
+  mutate(saving_hour = price_kwh_adj*elect_inj_hourly*1000)
+```
+
+```{r}
+total_savings_month = 
+  total_savings %>%
+  group_by(year, month) %>%
+  summarise(saving_month = sum(saving_hour), 
+            n_mg         = mean(count_mg)) %>%
+  ungroup()
+
+total_savings_month %>%
+  summarise(avg_saving = mean(saving_month/n_mg)/41.21)
+```
+
+### Injection and Extraction
+```{r}
+total_savings = 
+  back_of_envolpe_co2 %>% 
+  left_join(evolution_prices_all, 
+            by = c("day", "month", "year")) %>%
+  mutate(price_kwh_adj = case_when(hour >= 0 & hour <= 7 ~ 
+                                 prices_Valle_adj,
+                               hour >= 18 & hour <= 22 ~ 
+                                 prices_Punta_adj, 
+                               TRUE ~ prices_Llano_adj))
+```
+
+
+```{r}
+total_savings = 
+  total_savings %>%
+  mutate(saving_hour = price_kwh_adj*(elect_inj_hourly+elect_ext_hourly)*1000)
+```
+
+```{r}
+total_savings_month = 
+  total_savings %>%
+  group_by(year, month) %>%
+  summarise(saving_month = sum(saving_hour), 
+            n_mg         = mean(count_mg)) %>%
+  ungroup()
+
+total_savings_month %>%
+  summarise(avg_saving = mean(saving_month/n_mg)/41.21)
+```
+
+
+
+## Gurobi minimization
+
+### Clean the data
+
+We made a few minor changes now. In particular, we change the sign of exports and the name of electricity injected:
+```{r}
+final_gurobi <- final_gurobi %>% 
+  mutate(total_exports = - total_exports) #change the negative exports to positive exports
+```
+
+```{r}
+final_gurobi <- final_gurobi %>%
+  group_by(year, month, day) %>%
+  mutate(total_elec_iny=sum(elect_inj_hourly)) %>%
+  ungroup() #generate the total electricity injected on a day
+```
+
+We now create the residual demand:
+ 
+We know that:
+Thermal + Hydro + Biomasss + Wind + Solar + Microgeneration + Imports = Demand + Exports (1)
+
+Thus, we define the residual demand as: 
+
+Demand + Exports - Hydro - Biomass - Wind - Solar - Imports (2)
+ 
+In case the production exceeds the existing demand, we say there is no residual demand left.
+
+CTM appears in the exports and the total production, so we need to adjust that:
+```{r}
+load(paste0(dir$data,
+            "Gurobi/CTM_Gurobi.RData"))
+
+final_gurobi <- final_gurobi %>% 
+  mutate(r_d= demand + total_exports - total_imports - hydro - wind - solar - biomass) 
+
+final_gurobi <- 
+  final_gurobi %>% 
+  arrange(year, month, hour)
+
+final_gurobi <- merge(final_gurobi, 
+                       final_data_CTM, 
+                       by=c("year", "month", "day", "hour"), 
+                       all.x=TRUE)
+
+final_gurobi <- final_gurobi %>% 
+  mutate(CTM = ifelse(is.na(CTM), 0, -CTM))
+
+# 2 CTM because is sum negatively. So 2 CTM to cancel out + make it positive
+final_gurobi <- final_gurobi %>% 
+  mutate(residual_demand = r_d + CTM)  # create the new correct residual demand
+                         
+final_gurobi <- final_gurobi %>% 
+  mutate(residual_demand= ifelse(
+    residual_demand <0, 0, residual_demand))
+
+final_gurobi %>% 
+  summarize(mean_rd=mean(residual_demand, na.rm=TRUE), 
+            sd_rd=sd(residual_demand, na.rm=TRUE), 
+            min_rd=min(residual_demand, na.rm=TRUE), 
+            max_rd=max(residual_demand, na.rm=TRUE))
+```
+
+We check when thermal is positive: only moment to substitute it out for:
+```{r}
+final_gurobi <- final_gurobi %>% 
+  group_by(year, month, day) %>% 
+  mutate(mean_thermal = mean(thermal)) %>% 
+  ungroup()
+
+# final_gurobi2_check <- final_gurobi2 %>% 
+#   filter(mean_thermal>0)
+```
+
+We are eliminating the days which have no thermal production. Thus, when I distribute the injection of solar electricity it has to be with fewer days.
+```{r}
+#check <- final_gurobi_check %>% 
+# filter(year==2022, month==8) 
+#table(check$day)
+```
+
+```{r}
+# final_gurobi <- final_gurobi %>% 
+#   group_by(year, month) %>% 
+#   mutate(max_day = max(day), 
+#          total_residual_month = 
+#            sum(residual_demand)) %>% 
+#   ungroup() %>% 
+#   mutate(co2_per_unit = 
+#            desc_co2/total_residual_month) %>%
+#   group_by(year, month, day) %>% 
+#   mutate(total_residual_day = 
+#            sum(residual_demand), 
+#          total_residual_day_square = 
+#            sum(residual_demand^2)) %>%
+#   ungroup() %>% 
+#   mutate(ponderator = 
+#            residual_demand/total_residual_day,
+#          scale_pond = 
+#            total_residual_day^2/total_residual_day_square,
+#          perc_thermal = 
+#            ifelse(total_residual_day == 0, 
+#                   0,
+#                   scale_pond*ponderator*co2_per_unit))
+```
+
+### Minimization Problem
+
+We have data from November 2018 to August 2022. We will do each year in a loop.  
+
+Within a year, we loop within a month and hour. Our "x" variable, the variable that the model will decide where to optimally allocate, is the kWh production of microgeneration. In each round, we save such a result in the databset "A_round." Our "f(x)" variable, the variable the model will try to minimize, is the CO2 emissions associated with such a microgeneration. We will save the such a results in "A_round_solution."
+```{r}
+# Formally, the model will give as for each day where to optimally allocate the thermal production first and the microgeneration second. We then define a data.frame with 48 rows for that. 
+A_round <- 
+  data.frame("solution_mWh" = 
+               c(paste0("thermal_", 0:23),paste0("micro_gen_", 0:23)))
+
+# Formally, the model will give us the total CO2 emissions associated with the optimal solution describe before. Thus, we simply generate a data.frame with one row for that.
+A_round_solution = 
+      data.frame("solution_co2" = "kg")
+```
+
+First, we do 2018. We recover the number of months for such a year, which may differ year to year.
+```{r}
+year_round = 
+  2018 
+
+final_gurobi_round = 
+  final_gurobi %>%
+  filter(year == year_round)
+
+months_in_round = 
+  unique(final_gurobi_round$month)
+
+min_month = 
+  min(months_in_round)
+
+max_month = 
+  max(months_in_round)
+```
+
+Now, we do the loop. We need to define the matrices A and b for the minimization problem. For further details, please check the paper.
+```{r}
+for(i in min_month:max_month)
+{
+  
+  energy_G <- final_gurobi %>% 
+    filter(year==year_round, month==i)  
+  
+  max_day_round = energy_G$max_day[1]
+  
+  for(j in 1:max_day_round)
+    {
+    
+    energy_G <- final_gurobi %>% 
+      filter(year==year_round, month==i, day==j)
+    
+    #Now do the minimization problem:
+    model <- 
+      list()
+    
+    model$A <- 
+      rbind(cbind(diag(24), diag(24)),c(rep(0,24), rep(1,24)))
+    
+    model$obj   <- c(
+      energy_G$perc_thermal[1:24],rep(0, 24))
+    
+    model$modelsense <- 
+      'min'
+    
+    model$rhs        <- c(energy_G$residual_demand[],
+                          energy_G$total_elec_iny[1]) #take the whole first column
+    
+    model$sense      <- 
+      c(rep('>=',24), '=')                                                                              
+    
+    result <- gurobi(model)
+    
+#    print('Solution:')
+    
+#    print(result$objval)
+    
+#    print(result$x)
+    
+    Aw = 
+      data.frame("G_result"=result$x)
+    
+    A_solution = 
+      data.frame("G_value"=result$objval)
+    
+    if(any(energy_G$mean_thermal > 0)) {
+      
+    names(Aw)[1] <- 
+        paste0(names(Aw)[1], year_round,"_",i,"_", j)
+      
+      A_round <- cbind(A_round,
+                    Aw)
+      
+    names(A_solution)[1] <- 
+      paste0(names(A_solution)[1], year_round,"_",i,"_",j)
+      
+    A_round_solution <- cbind(A_round_solution,
+                             A_solution)
+    }
+  }
+}
+```
+
+We then save the solution for every year on the "final_x_solution" and "final_co2_solution" database:
+```{r}
+final_x_solution = 
+  A_round 
+
+final_co2_solution = 
+  A_round_solution
+```
+
+The process is alike for the remaining years:
+```{r}
+for (year_round in 2019:2022) {
+  A_round <- 
+  data.frame("solution_mWh" = 
+               c(paste0("thermal_", 0:23),paste0("micro_gen_", 0:23)))
+
+A_round_solution = 
+      data.frame("solution_co2" = "kg") 
+
+final_gurobi_round = 
+  final_gurobi %>%
+  filter(year == year_round)
+
+months_in_round = 
+  unique(final_gurobi_round$month)
+
+min_month = 
+  min(months_in_round)
+
+max_month = 
+  max(months_in_round)
+
+for(i in min_month:max_month)
+{
+  
+  energy_G <- final_gurobi %>% 
+    filter(year==year_round, month==i)  
+  
+  max_day_round = energy_G$max_day[1]
+  
+  for(j in 1:max_day_round)
+  {
+    
+    energy_G <- final_gurobi %>% 
+      filter(year==year_round, month==i, day==j)
+    
+    #Now do the minimization problem:
+    model <- list()
+    
+    model$A <- 
+      rbind(cbind(diag(24), diag(24)),c(rep(0,24), rep(1,24)))
+    
+    model$obj   <- c(energy_G$perc_thermal[1:24],
+                     rep(0, 24))
+    
+    model$modelsense <- 
+      'min'
+    
+    model$rhs        <- c(energy_G$residual_demand[],
+                          energy_G$total_elec_iny[1]) #take the whole first column
+    
+    model$sense      <- 
+      c(rep('>=',24), '=')                                                                          
+    
+    result <- gurobi(model)
+    
+#    print('Solution:')
+    
+#    print(result$objval)
+    
+#    print(result$x)
+    
+    Aw = 
+      data.frame("G_result"=result$x)
+    
+    A_solution = 
+      data.frame("G_value"=result$objval)
+    
+    if(any(energy_G$mean_thermal > 0)) {
+      
+    names(Aw)[1] <- 
+        paste0(names(Aw)[1], year_round,"_",i,"_", j)
+      
+      A_round <- cbind(A_round,
+                    Aw)
+      
+    names(A_solution)[1] <- 
+      paste0(names(A_solution)[1], year_round,"_",i,"_",j)
+      
+    A_round_solution <- cbind(A_round_solution,
+                             A_solution)
+    }
+  }
+}
+
+final_x_solution = 
+  cbind(final_x_solution, 
+        A_round[, 2:ncol(A_round)]) 
+
+final_co2_solution = 
+  cbind(final_co2_solution, 
+        A_round_solution[, 2:ncol(A_round_solution)])
+}
+```
+
+We modify the solution so it's in a long format, which is easier to manage:
+```{r}
+final_co2_solution_long = 
+  final_co2_solution %>%
+  pivot_longer(starts_with("G_value"), 
+               names_to  = "date", 
+               values_to = "co2_kg", 
+               names_prefix = "G_value") %>%
+  mutate(co2_kg = as.numeric(co2_kg)) %>%
+  separate(date, c("year", "month", "day"), 
+           sep="_", remove=FALSE)
+```
+
+
+```{r}
+total_co2_emissions_gurobi = 
+  final_co2_solution_long %>% 
+  group_by(month, year) %>%
+  summarise(total_co2_model = 
+              sum(co2_kg, na.rm = T)) %>%
+  ungroup()  %>%
+  mutate(across(c("month", "year"), 
+                as.numeric))
+```
+
+```{r}
+back_of_envolpe_co2 = 
+  final_gurobi %>%
+  filter(residual_demand > 0 & thermal > 0)
+```
+
+
+We can now calculate the total CO2 emissions at baseline. We simply sum up the CO2 emissions which are a monthly level over the whole study period.
+```{r}
+total_co2_emissions_statuo_quo = 
+  back_of_envolpe_co2 %>%
+  group_by(month, year) %>%
+  summarise(total_co2_emissions = 
+              mean(desc_co2, na.rm = T))
+```
+
+```{r}
+total_reduction_month =
+  total_co2_emissions_gurobi %>%
+  left_join(total_co2_emissions_statuo_quo,
+            by = c("month", "year")) %>%
+  mutate(reduction_co2 = 1 - total_co2_model/total_co2_emissions) %>%
+  ungroup()
+
+total_reduction_month %>%
+  summarise(reduction_co2 = mean(reduction_co2))
+```
+
+### Plot
+
+```{r}
+final_x_solution_long = 
+  final_x_solution %>%
+    pivot_longer(starts_with("G_result"), 
+               names_to  = "date", 
+               values_to = "kWh", 
+               names_prefix = "G_result") %>%
+  mutate(kWh = as.numeric(kWh)) %>%
+  separate(date, c("year", "month", "day"), 
+           sep="_", remove=FALSE) 
+
+final_x_solution_long = 
+  final_x_solution_long %>% 
+  filter(solution_mWh %in% paste0("micro_gen_", 0:23)) %>% 
+  mutate(hour = as.numeric(substr(solution_mWh, 11, nchar(solution_mWh))))
+```
+
+```{r}
+plot_final_2 <- ggplot(data = final_x_solution_long %>% 
+                         filter(kWh != 0) %>%
+                         group_by(hour) %>%
+                         summarise(tot_days_final = n()) 
+                       # %>%
+                        # mutate(hour = ifelse(hour == 0, 24, hour))
+                       , 
+                       aes(x=hour, y=tot_days_final)) +
+  geom_point(size=2) +
+#  geom_vline(xintercept=8, color = "yellow", size=1) +
+#  geom_vline(xintercept=16, color = "yellow", size=1) +
+#  theme(text = element_text(size = 15)) +
+  labs(y = "Freq. Solutions" ,x = "Hour") +
+  theme(legend.key.size = unit(1, 'cm')) +
+  ggtitle("Model Solution")
+
+plot_final_2
+```
+
+```{r}
+ggsave(paste0(dir$fig,"plot_final.png"), 
+       width = 7, height = 4.5)
+```
+
+
+# Spot Prices
+
+Use the spot price instead:
+```{r}
+spot_price <- read_excel(paste0(dir$data,
+                                "spot_prices/spot_price_Gurobi.xls"))
+
+final_g_spot <- merge(final_gurobi, 
+                      spot_price, by=c("year", "month", "day", "hour"))
+```
+
+
+```{r}
+year_round = 
+  2018 
+
+sp_round <- 
+  data.frame("solution_mWh" = 
+               c(paste0("thermal_", 0:23),paste0("micro_gen_", 0:23)))
+
+sp_round_solution = 
+  data.frame("solution_co2" = "kg") 
+
+energy_G_spot_round = 
+  final_g_spot %>%
+  filter(year == year_round)
+
+months_in_round = 
+  unique(energy_G_spot_round$month)
+
+min_month = 
+  min(months_in_round)
+
+max_month = 
+  max(months_in_round)
+
+for(i in min_month:max_month)
+{
+  
+  energy_G <- final_g_spot %>% 
+    filter(year==year_round, month==i)  
+  
+  
+  for(j in 1:energy_G$max_day[1])
+  {
+    
+    energy_G <- final_g_spot %>% 
+      filter(year==year_round, month==i, day==j)
+    
+  energy_G <-
+    energy_G[order(energy_G$hour),]
+    
+    #Now do the minimization problem:
+    model <- list()
+    
+    model <- 
+      list()
+    
+    model$A <- 
+      rbind(cbind(diag(24), diag(24)),c(rep(0,24), rep(1,24)))
+    
+    model$obj   <- c(
+      energy_G$perc_thermal[1:24],rep(0, 24))
+    
+    model$modelsense <- 
+      'min'
+    
+    model$rhs        <- c(energy_G$residual_demand[],
+                          energy_G$total_elec_iny[1]) #take the whole first column
+    
+    model$sense      <- 
+      c(rep('>=',24), '=')                                                                             
+    
+    result <- gurobi(model)
+    
+    #    print('Solution:')
+    
+    #    print(result$objval)
+    
+    #    print(result$x)
+    
+    Aw = 
+      data.frame("G_result"=result$x)
+    
+    sp_solution = 
+      data.frame("G_value"=result$objval)
+    
+    if(any(energy_G$mean_thermal > 0)) {
+      
+      names(Aw)[1] <- 
+        paste0(names(Aw)[1], year_round,"_",i,"_", j)
+      
+      sp_round <- cbind(sp_round,
+                        Aw)
+      
+      names(sp_solution)[1] <- 
+        paste0(names(sp_solution)[1], year_round,"_",i,"_",j)
+      
+      sp_round_solution <- cbind(sp_round_solution,
+                                 sp_solution)
+    }
+  }
+}
+
+final_x_solution = 
+  sp_round 
+
+final_co2_solution = 
+  sp_round_solution
+```
+
+```{r}
+# sp_solution = 
+#   final_x_solution %>%
+#   filter(solution_mWh %in% paste0("micro_gen_", 0:23)) %>% 
+#   mutate(hour = as.numeric(substr(solution_mWh, 11, nchar(solution_mWh))))
+```
+
+```{r, message=F}
+for (year_round in 2019:2022) {
+  sp_round <- 
+    data.frame("solution_mWh" = 
+                 c(paste0("thermal_", 0:23),paste0("micro_gen_", 0:23)))
+  
+  sp_round_solution = 
+    data.frame("solution_co2" = "kg") 
+  
+  energy_G_spot_round = 
+    final_g_spot %>%
+    filter(year == year_round)
+  
+  months_in_round = 
+    unique(energy_G_spot_round$month)
+  
+  min_month = 
+    min(months_in_round)
+  
+  max_month = 
+    max(months_in_round)
+  
+  for(i in min_month:max_month)
+  {
+    
+  energy_G <- final_g_spot %>% 
+    filter(year==year_round, month==i)  
+    
+    for(j in 1:energy_G$max_day[1])
+    {
+      
+      energy_G <- final_g_spot %>% 
+        filter(year==year_round, month==i, day==j)
+      
+    energy_G <-
+      energy_G[order(energy_G$hour),]
+      
+      #Now do the minimization problem:
+      model <- list()
+      
+      model <- 
+      list()
+    
+    model$A <- 
+      rbind(cbind(diag(24), diag(24)),c(rep(0,24), rep(1,24)))
+    
+    model$obj   <- c(
+      energy_G$perc_thermal[1:24],rep(0, 24))
+    
+    model$modelsense <- 
+      'min'
+    
+    model$rhs        <- c(energy_G$residual_demand[],
+                          energy_G$total_elec_iny[1]) #take the whole first column
+    
+    model$sense      <- 
+      c(rep('>=',24), '=')                                                                             
+      
+      result <- gurobi(model)
+      
+      #    print('Solution:')
+      
+      #    print(result$objval)
+      
+      #    print(result$x)
+      
+      Aw = 
+        data.frame("G_result"=result$x)
+      
+      sp_solution = 
+        data.frame("G_value"=result$objval)
+      
+      if(any(energy_G$mean_thermal > 0)) {
+        
+        names(Aw)[1] <- 
+          paste0(names(Aw)[1], year_round,"_",i,"_", j)
+        
+        sp_round <- cbind(sp_round,
+                          Aw)
+        
+        names(sp_solution)[1] <- 
+          paste0(names(sp_solution)[1], year_round,"_",i,"_",j)
+        
+        sp_round_solution <- cbind(sp_round_solution,
+                                   sp_solution)
+      }
+    }
+  }
+  
+  final_x_solution = 
+    cbind(final_x_solution, 
+          sp_round[, 2:ncol(sp_round)]) 
+  
+  final_co2_solution = 
+    cbind(final_co2_solution, 
+          sp_round_solution[, 2:ncol(sp_round_solution)])
+}
+```
+
+```{r}
+# final_co2_solution_long = 
+#   final_co2_solution %>%
+#   pivot_longer(starts_with("G_value"), 
+#                names_to  = "date", 
+#                values_to = "cost_usd", 
+#                names_prefix = "G_value") %>%
+#   mutate(cost_usd = as.numeric(cost_usd)) %>%
+#   separate(date, c("year", "month", "day"), 
+#            sep="_", remove=FALSE)
+# 
+# total_cost_sp_gurobi = 
+#   final_co2_solution_long %>% 
+#   summarise(cost_usd = 
+#               sum(cost_usd, na.rm = T))
+# 
+# scales::comma(total_cost_sp_gurobi$cost_usd)
+```
+
+```{r}
+back_of_envolpe_co2 <-
+  back_of_envolpe_co2 %>% 
+  left_join(spot_price, 
+            by = c("year", "month", "day", "hour"))
+```
+
+```{r}
+total_saving_sp_sq = 
+  back_of_envolpe_co2 %>% 
+  group_by(month, year) %>%
+  summarise(saving_usd = 
+              sum(spot_price*elect_inj_hourly, na.rm = T)) %>%
+  ungroup()
+
+total_saving_sp_sq %>%
+  summarise(saving_usd = mean(saving_usd))
+```
+
+
+```{r}
+final_x_solution_long = 
+  final_x_solution %>%
+  pivot_longer(starts_with("G_result"), 
+               names_to  = "date", 
+               values_to = "kWh", 
+               names_prefix = "G_result") %>%
+  mutate(kWh = as.numeric(kWh)) %>%
+  separate(date, c("year", "month", "day"), 
+           sep="_", remove=FALSE)
+
+final_x_solution_long = 
+  final_x_solution_long %>% 
+  filter(solution_mWh %in% paste0("micro_gen_", 0:23)) %>% 
+  mutate(hour = as.numeric(substr(solution_mWh, 11, nchar(solution_mWh))))
+```
+
+```{r}
+final_x_solution_long <-
+  final_x_solution_long %>% 
+  mutate(across(c("year", "month", "day", "hour"), 
+                as.numeric))
+
+final_x_solution_long <- 
+  final_x_solution_long %>% 
+  left_join(spot_price, 
+            by = c("year", "month", "day", "hour"))
+```
+
+```{r}
+total_saving_sp_gurobi = 
+  final_x_solution_long %>% 
+  group_by(month, year) %>%
+  summarise(saving_usd = 
+              sum(spot_price*kWh, na.rm = T)) %>%
+  ungroup()
+
+total_saving_sp_gurobi %>%
+  summarise(saving_month = mean(saving_usd))
+```
+
+### Plot
+
+```{r}
+final_x_solution_long = 
+  final_x_solution %>%
+  pivot_longer(starts_with("G_result"), 
+               names_to  = "date", 
+               values_to = "kWh", 
+               names_prefix = "G_result") %>%
+  mutate(kWh = as.numeric(kWh)) %>%
+  separate(date, c("year", "month", "day"), 
+           sep="_", remove=FALSE) 
+
+final_x_solution_long = 
+  final_x_solution_long %>% 
+  filter(solution_mWh %in% paste0("micro_gen_", 0:23)) %>% 
+  mutate(hour = as.numeric(substr(solution_mWh, 11, nchar(solution_mWh))))
+```
+
+```{r}
+plot_final_2 <- ggplot(data = final_x_solution_long %>% 
+                         filter(kWh != 0) %>%
+                         group_by(hour) %>%
+                         summarise(tot_days_final = n()) %>%
+                         mutate(hour = ifelse(hour == 0, 24, hour)), 
+                       aes(x=hour, y=tot_days_final)) +
+  geom_point(size=2) +
+#  geom_vline(xintercept=8, color = "yellow", size=1) +
+#  geom_vline(xintercept=16.5, color = "yellow", size=1) +
+#  theme(text = element_text(size = 15)) +
+  labs(y = "Freq. Solutions" ,x = "Hour") +
+  theme(legend.key.size = unit(1, 'cm')) +
+  ggtitle("Model Solution")
+
+plot_final_2
+```
+
+
+```{r}
+ggsave(paste0(dir$fig, "sp_plot_final.png"),
+              width = 7, height = 4.5)
+```
+
+
+### Plots
+
+```{r}
+data_sp <- final_g_spot %>% group_by(hour) %>%  
+  summarize(across(where(is.numeric), mean, na.rm=TRUE))
+
+sp_plot <- ggplot(data = data_sp, 
+                  aes(x=hour, y=spot_price)) +
+  geom_point(size=2) + 
+  #ylim(0, 0.08) + 
+#  theme(text = element_text(size = 15)) + 
+  scale_color_manual(name="",) + 
+  labs(y = "Spot price (USD/MWh)" ,
+       x = "Hours") + 
+    theme(legend.key.size = unit(1, 'cm')) +
+  ggtitle("Spot Price Distribution")
+
+sp_plot
+```
+
+```{r}
+ggsave(paste0(dir$fig,"sp_plot.png"), 
+       width = 7, height = 4.5)
+```

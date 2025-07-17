@@ -1,0 +1,717 @@
+Arrange the Co2 data to use it in the Gurobi optimization problem.
+
+The data of Co2 is at monthly level. Thus, transform/distribute it to hourly level. 
+And then find the emission factor by MW 1) constant 2)different given the amount of thermal produced
+
+
+```{r}
+rm(list=ls())
+library(dplyr)
+library(readxl)
+```
+
+
+```{r}
+load("C:/Users/natal/OneDrive - University of Edinburgh/Net_metering_UY/Final_project/Gurobi/final_co2.RData")
+```
+
+Eliminate the variables that I dont need:
+```{r}
+co2 <- final_co2 %>% dplyr::select(c("year", "month", "day", "prod", "prod_gas", "own_consum", "gasoil_consum", "gas_consum", "gas_spe_consum", "gas_spe_consum_2", "fueloil_consum", "fuelmot_consum", "fuel_oil", "fueloil_tj", "gasoil_tj", "fueloil_co2", "gasoil_co2", "ng_co2", "total_co2", "desc_co2"))
+```
+
+Filter the year 2018, 2019, 2020, 2021, and 2022
+```{r}
+co2 <- co2 %>% filter(year>2017) %>% dplyr::distinct()
+#check <- final_co2 %>% dplyr::select(c("year", "month", "day", "prod", "prod_gas", "own_consum", "gasoil_consum", "gas_consum", "gas_spe_consum", "gas_spe_consum_2", "fueloil_consum", "fuelmot_consum", "fuel_oil", "fueloil_tj", "gasoil_tj", "fueloil_co2", "gasoil_co2", "ng_co2", "total_co2", "desc_co2")) %>% filter(year>2017)
+```
+
+#2018#
+1) First row is November - 2018 
+```{r}
+nov_2018 <- co2[3,]
+
+nov_2018 <- nov_2018 %>% mutate(day=1, hour=0) #create the variable day
+nov_2018 <- nov_2018[rep(seq_len(nrow(nov_2018)), each = 30), ] #multiplies each row 30 times
+nov_2018 <- nov_2018 %>% group_by(year, month, day) %>% mutate(day=1:30) # add days from 1 to 30
+
+nov_2018 <- nov_2018[rep(seq_len(nrow(nov_2018)), each = 24), ] #For each day, add 24 hours
+nov_2018 <- nov_2018 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+nov_2018 <- nov_2018 %>% mutate(day_co2=(desc_co2/(30-7))) #Why 30 -7: because there are 7 days there is no thermal production
+```
+
+2) December - 2018
+```{r}
+dec_2018 <- co2[4,]
+
+dec_2018 <- dec_2018 %>% mutate(day=1, hour=0) #create the variable day
+dec_2018 <- dec_2018[rep(seq_len(nrow(dec_2018)), each = 31), ] #multiplies each row 30 times
+dec_2018 <- dec_2018 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+dec_2018 <- dec_2018[rep(seq_len(nrow(dec_2018)), each = 24), ] #For each day, add 24 hours
+dec_2018 <- dec_2018 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+dec_2018 <- dec_2018 %>% mutate(day_co2=(desc_co2/(31-5))) #Why 31-5: because there are 5 days there is no thermal production
+```
+
+
+```{r}
+co2_2018 <- rbind(nov_2018, dec_2018)
+rm(nov_2018, dec_2018)
+```
+
+
+
+#2019#
+3) January - 2019
+```{r}
+jan_2019 <- co2[13,]
+
+jan_2019 <- jan_2019 %>% mutate(day=1, hour=0) #create the variable day
+jan_2019 <- jan_2019[rep(seq_len(nrow(jan_2019)), each = 31), ] #multiplies each row 30 times
+jan_2019 <- jan_2019 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+jan_2019 <- jan_2019[rep(seq_len(nrow(jan_2019)), each = 24), ] #For each day, add 24 hours
+jan_2019 <- jan_2019 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+jan_2019 <- jan_2019 %>% mutate(day_co2=(desc_co2/(31-2)))
+```
+
+4) February - 2019
+```{r}
+feb_2019 <- co2[17,]
+
+feb_2019 <- feb_2019 %>% mutate(day=1, hour=0) #create the variable day
+feb_2019 <- feb_2019[rep(seq_len(nrow(feb_2019)), each = 28), ] #multiplies each row 30 times
+feb_2019 <- feb_2019 %>% group_by(year, month, day) %>% mutate(day=1:28) # add days from 1 to 30
+
+feb_2019 <- feb_2019[rep(seq_len(nrow(feb_2019)), each = 24), ] #For each day, add 24 hours
+feb_2019 <- feb_2019 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+feb_2019 <- feb_2019 %>% mutate(day_co2=(desc_co2/(28-2)))
+```
+
+5) March - 2019
+```{r}
+mar_2019 <- co2[18,]
+
+mar_2019 <- mar_2019 %>% mutate(day=1, hour=0) #create the variable day
+mar_2019 <- mar_2019[rep(seq_len(nrow(mar_2019)), each = 31), ] #multiplies each row 30 times
+mar_2019 <- mar_2019 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+mar_2019 <- mar_2019[rep(seq_len(nrow(mar_2019)), each = 24), ] #For each day, add 24 hours
+mar_2019 <- mar_2019 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+mar_2019 <- mar_2019 %>% mutate(day_co2=(desc_co2/(31-10)))
+```
+
+6) April - 2019 
+```{r}
+apr_2019 <- co2[19,]
+
+apr_2019 <- apr_2019 %>% mutate(day=1, hour=0) #create the variable day
+apr_2019 <- apr_2019[rep(seq_len(nrow(apr_2019)), each = 30), ] #multiplies each row 30 times
+apr_2019 <- apr_2019 %>% group_by(year, month, day) %>% mutate(day=1:30) # add days from 1 to 30
+
+apr_2019 <- apr_2019[rep(seq_len(nrow(apr_2019)), each = 24), ] #For each day, add 24 hours
+apr_2019 <- apr_2019 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+apr_2019 <- apr_2019 %>% mutate(day_co2=(desc_co2/(30-20)))
+```
+
+7) May - 2019
+```{r}
+may_2019 <- co2[20,]
+
+may_2019 <- may_2019 %>% mutate(day=1, hour=0) #create the variable day
+may_2019 <- may_2019[rep(seq_len(nrow(may_2019)), each = 31), ] #multiplies each row 30 times
+may_2019 <- may_2019 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+may_2019 <- may_2019[rep(seq_len(nrow(may_2019)), each = 24), ] #For each day, add 24 hours
+may_2019 <- may_2019 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+may_2019 <- may_2019 %>% mutate(day_co2=(desc_co2/(31-19)))
+```
+
+8) June - 2019 
+```{r}
+june_2019 <- co2[21,]
+
+june_2019 <- june_2019 %>% mutate(day=1, hour=0) #create the variable day
+june_2019 <- june_2019[rep(seq_len(nrow(june_2019)), each = 30), ] #multiplies each row 30 times
+june_2019 <- june_2019 %>% group_by(year, month, day) %>% mutate(day=1:30) # add days from 1 to 30
+
+june_2019 <- june_2019[rep(seq_len(nrow(june_2019)), each = 24), ] #For each day, add 24 hours
+june_2019 <- june_2019 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+june_2019 <- june_2019 %>% mutate(day_co2=(desc_co2/(30-18)))
+```
+
+9) July - 2019
+```{r}
+july_2019 <- co2[22,]
+
+july_2019 <- july_2019 %>% mutate(day=1, hour=0) #create the variable day
+july_2019 <- july_2019[rep(seq_len(nrow(july_2019)), each = 31), ] #multiplies each row 30 times
+july_2019 <- july_2019 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+july_2019 <- july_2019[rep(seq_len(nrow(july_2019)), each = 24), ] #For each day, add 24 hours
+july_2019 <- july_2019 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+july_2019 <- july_2019 %>% mutate(day_co2=(desc_co2/(31-15)))
+```
+
+10) August - 2019 
+```{r}
+aug_2019 <- co2[23,]
+
+aug_2019 <- aug_2019 %>% mutate(day=1, hour=0) #create the variable day
+aug_2019 <- aug_2019[rep(seq_len(nrow(aug_2019)), each = 31), ] #multiplies each row 30 times
+aug_2019 <- aug_2019 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+aug_2019 <- aug_2019[rep(seq_len(nrow(aug_2019)), each = 24), ] #For each day, add 24 hours
+aug_2019 <- aug_2019 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+aug_2019 <- aug_2019 %>% mutate(day_co2=(desc_co2/(31-12)))
+```
+
+11) September - 2019 
+```{r}
+sep_2019 <- co2[24,]
+
+sep_2019 <- sep_2019 %>% mutate(day=1, hour=0) #create the variable day
+sep_2019 <- sep_2019[rep(seq_len(nrow(sep_2019)), each = 30), ] #multiplies each row 30 times
+sep_2019 <- sep_2019 %>% group_by(year, month, day) %>% mutate(day=1:30) # add days from 1 to 30
+
+sep_2019 <- sep_2019[rep(seq_len(nrow(sep_2019)), each = 24), ] #For each day, add 24 hours
+sep_2019 <- sep_2019 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+sep_2019 <- sep_2019 %>% mutate(day_co2=(desc_co2/(30-7)))
+```
+
+12) October - 2019 
+```{r}
+oct_2019 <- co2[14,]
+
+oct_2019 <- oct_2019 %>% mutate(day=1, hour=0) #create the variable day
+oct_2019 <- oct_2019[rep(seq_len(nrow(oct_2019)), each = 31), ] #multiplies each row 30 times
+oct_2019 <- oct_2019 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+oct_2019 <- oct_2019[rep(seq_len(nrow(oct_2019)), each = 24), ] #For each day, add 24 hours
+oct_2019 <- oct_2019 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+oct_2019 <- oct_2019 %>% mutate(day_co2=(desc_co2/(31-12)))
+```
+
+13) November - 2019 
+```{r}
+nov_2019 <- co2[15,]
+
+nov_2019 <- nov_2019 %>% mutate(day=1, hour=0) #create the variable day
+nov_2019 <- nov_2019[rep(seq_len(nrow(nov_2019)), each = 30), ] #multiplies each row 30 times
+nov_2019 <- nov_2019 %>% group_by(year, month, day) %>% mutate(day=1:30) # add days from 1 to 30
+
+nov_2019 <- nov_2019[rep(seq_len(nrow(nov_2019)), each = 24), ] #For each day, add 24 hours
+nov_2019 <- nov_2019 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+nov_2019 <- nov_2019 %>% mutate(day_co2=(desc_co2/(30-20)))
+```
+
+14) December - 2019 
+```{r}
+dec_2019 <- co2[16,]
+
+dec_2019 <- dec_2019 %>% mutate(day=1, hour=0) #create the variable day
+dec_2019 <- dec_2019[rep(seq_len(nrow(dec_2019)), each = 31), ] #multiplies each row 30 times
+dec_2019 <- dec_2019 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+dec_2019 <- dec_2019[rep(seq_len(nrow(dec_2019)), each = 24), ] #For each day, add 24 hours
+dec_2019 <- dec_2019 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+dec_2019 <- dec_2019 %>% mutate(day_co2=(desc_co2/(31-21)))
+```
+
+
+```{r}
+co2_2019 <- rbind(jan_2019, feb_2019, mar_2019, apr_2019, may_2019, june_2019, july_2019, aug_2019, sep_2019, oct_2019, nov_2019, dec_2019)
+rm(jan_2019, feb_2019, mar_2019, apr_2019, may_2019, june_2019, july_2019, aug_2019, sep_2019, oct_2019, nov_2019, dec_2019)
+```
+
+#2020#
+15) January - 2020 
+```{r}
+jan_2020 <- co2[25,]
+
+jan_2020 <- jan_2020 %>% mutate(day=1, hour=0) #create the variable day
+jan_2020 <- jan_2020[rep(seq_len(nrow(jan_2020)), each = 31), ] #multiplies each row 30 times
+jan_2020 <- jan_2020 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+jan_2020 <- jan_2020[rep(seq_len(nrow(jan_2020)), each = 24), ] #For each day, add 24 hours
+jan_2020 <- jan_2020 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+jan_2020 <- jan_2020 %>% mutate(day_co2=(desc_co2/(31-15)))
+```
+
+16) February - 2020
+```{r}
+feb_2020 <- co2[29,]
+
+feb_2020 <- feb_2020 %>% mutate(day=1, hour=0) #create the variable day
+feb_2020 <- feb_2020[rep(seq_len(nrow(feb_2020)), each = 29), ] #multiplies each row 30 times
+feb_2020 <- feb_2020 %>% group_by(year, month, day) %>% mutate(day=1:29) # add days from 1 to 30
+
+feb_2020 <- feb_2020[rep(seq_len(nrow(feb_2020)), each = 24), ] #For each day, add 24 hours
+feb_2020 <- feb_2020 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+feb_2020 <- feb_2020 %>% mutate(day_co2=(desc_co2/(29-9)))
+```
+
+17) March - 2020 
+```{r}
+mar_2020 <- co2[30,]
+
+mar_2020 <- mar_2020 %>% mutate(day=1, hour=0) #create the variable day
+mar_2020 <- mar_2020[rep(seq_len(nrow(mar_2020)), each = 31), ] #multiplies each row 30 times
+mar_2020 <- mar_2020 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+mar_2020 <- mar_2020[rep(seq_len(nrow(mar_2020)), each = 24), ] #For each day, add 24 hours
+mar_2020 <- mar_2020 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+mar_2020 <- mar_2020 %>% mutate(day_co2=(desc_co2/(31-9)))
+```
+
+18) April 2020 
+```{r}
+apr_2020 <- co2[31,]
+
+apr_2020 <- apr_2020 %>% mutate(day=1, hour=0) #create the variable day
+apr_2020 <- apr_2020[rep(seq_len(nrow(apr_2020)), each = 30), ] #multiplies each row 30 times
+apr_2020 <- apr_2020 %>% group_by(year, month, day) %>% mutate(day=1:30) # add days from 1 to 30
+
+apr_2020 <- apr_2020[rep(seq_len(nrow(apr_2020)), each = 24), ] #For each day, add 24 hours
+apr_2020 <- apr_2020 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+apr_2020 <- apr_2020 %>% mutate(day_co2=(desc_co2/(30-23)))
+```
+
+19) May - 2020 
+```{r}
+may_2020 <- co2[32,]
+
+may_2020 <- may_2020 %>% mutate(day=1, hour=0) #create the variable day
+may_2020 <- may_2020[rep(seq_len(nrow(may_2020)), each = 31), ] #multiplies each row 30 times
+may_2020 <- may_2020 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+may_2020 <- may_2020[rep(seq_len(nrow(may_2020)), each = 24), ] #For each day, add 24 hours
+may_2020 <- may_2020 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+may_2020 <- may_2020 %>% mutate(day_co2=(desc_co2/(31-25)))
+```
+
+20) June 2020 
+```{r}
+june_2020 <- co2[33,]
+
+june_2020 <- june_2020 %>% mutate(day=1, hour=0) #create the variable day
+june_2020 <- june_2020[rep(seq_len(nrow(june_2020)), each = 30), ] #multiplies each row 30 times
+june_2020 <- june_2020 %>% group_by(year, month, day) %>% mutate(day=1:30) # add days from 1 to 30
+
+june_2020 <- june_2020[rep(seq_len(nrow(june_2020)), each = 24), ] #For each day, add 24 hours
+june_2020 <- june_2020 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+june_2020 <- june_2020 %>% mutate(day_co2=(desc_co2/(30-17)))
+```
+
+
+21) July - 2020 
+```{r}
+july_2020 <- co2[34,]
+
+july_2020 <- july_2020 %>% mutate(day=1, hour=0) #create the variable day
+july_2020 <- july_2020[rep(seq_len(nrow(july_2020)), each = 31), ] #multiplies each row 30 times
+july_2020 <- july_2020 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+july_2020 <- july_2020[rep(seq_len(nrow(july_2020)), each = 24), ] #For each day, add 24 hours
+july_2020 <- july_2020 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+july_2020 <- july_2020 %>% mutate(day_co2=(desc_co2/(31-14)))
+```
+
+22) August - 2020 
+```{r}
+aug_2020 <- co2[35,]
+
+aug_2020 <- aug_2020 %>% mutate(day=1, hour=0) #create the variable day
+aug_2020 <- aug_2020[rep(seq_len(nrow(aug_2020)), each = 31), ] #multiplies each row 30 times
+aug_2020 <- aug_2020 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+aug_2020 <- aug_2020[rep(seq_len(nrow(aug_2020)), each = 24), ] #For each day, add 24 hours
+aug_2020 <- aug_2020 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+aug_2020 <- aug_2020 %>% mutate(day_co2=(desc_co2/(31-21)))
+```
+
+23) September 2020 
+```{r}
+sep_2020 <- co2[36,]
+
+sep_2020 <- sep_2020 %>% mutate(day=1, hour=0) #create the variable day
+sep_2020 <- sep_2020[rep(seq_len(nrow(sep_2020)), each = 30), ] #multiplies each row 30 times
+sep_2020 <- sep_2020 %>% group_by(year, month, day) %>% mutate(day=1:30) # add days from 1 to 30
+
+sep_2020 <- sep_2020[rep(seq_len(nrow(sep_2020)), each = 24), ] #For each day, add 24 hours
+sep_2020 <- sep_2020 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+sep_2020 <- sep_2020 %>% mutate(day_co2=(desc_co2/(30-24)))
+```
+
+24) October - 2020 
+```{r}
+oct_2020 <- co2[26,]
+
+oct_2020 <- oct_2020 %>% mutate(day=1, hour=0) #create the variable day
+oct_2020 <- oct_2020[rep(seq_len(nrow(oct_2020)), each = 31), ] #multiplies each row 30 times
+oct_2020 <- oct_2020 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+oct_2020 <- oct_2020[rep(seq_len(nrow(oct_2020)), each = 24), ] #For each day, add 24 hours
+oct_2020 <- oct_2020 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+oct_2020 <- oct_2020 %>% mutate(day_co2=(desc_co2/(31-12)))
+```
+
+25) November 2020 
+```{r}
+nov_2020 <- co2[27,]
+
+nov_2020 <- nov_2020 %>% mutate(day=1, hour=0) #create the variable day
+nov_2020 <- nov_2020[rep(seq_len(nrow(nov_2020)), each = 30), ] #multiplies each row 30 times
+nov_2020 <- nov_2020 %>% group_by(year, month, day) %>% mutate(day=1:30) # add days from 1 to 30
+
+nov_2020 <- nov_2020[rep(seq_len(nrow(nov_2020)), each = 24), ] #For each day, add 24 hours
+nov_2020 <- nov_2020 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+nov_2020 <- nov_2020 %>% mutate(day_co2=(desc_co2/(30-3)))
+```
+
+26) December - 2020 
+```{r}
+dec_2020 <- co2[28,]
+
+dec_2020 <- dec_2020 %>% mutate(day=1, hour=0) #create the variable day
+dec_2020 <- dec_2020[rep(seq_len(nrow(dec_2020)), each = 31), ] #multiplies each row 30 times
+dec_2020 <- dec_2020 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+dec_2020 <- dec_2020[rep(seq_len(nrow(dec_2020)), each = 24), ] #For each day, add 24 hours
+dec_2020 <- dec_2020 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+dec_2020 <- dec_2020 %>% mutate(day_co2=(desc_co2/(31-2)))
+```
+
+```{r}
+co2_2020 <- rbind(jan_2020, feb_2020, mar_2020, apr_2020, may_2020, june_2020, july_2020, aug_2020, sep_2020, oct_2020, nov_2020, dec_2020)
+rm(jan_2020, feb_2020, mar_2020, apr_2020, may_2020, june_2020, july_2020, aug_2020, sep_2020, oct_2020, nov_2020, dec_2020)
+```
+
+#2021#
+27) January - 2021 
+```{r}
+jan_2021 <- co2[37,]
+
+jan_2021 <- jan_2021 %>% mutate(day=1, hour=0) #create the variable day
+jan_2021 <- jan_2021[rep(seq_len(nrow(jan_2021)), each = 31), ] #multiplies each row 30 times
+jan_2021 <- jan_2021 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+jan_2021 <- jan_2021[rep(seq_len(nrow(jan_2021)), each = 24), ] #For each day, add 24 hours
+jan_2021 <- jan_2021 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+jan_2021 <- jan_2021 %>% mutate(day_co2=(desc_co2/(31-5)))
+```
+
+28) February - 2021
+```{r}
+feb_2021 <- co2[41,]
+
+feb_2021 <- feb_2021 %>% mutate(day=1, hour=0) #create the variable day
+feb_2021 <- feb_2021[rep(seq_len(nrow(feb_2021)), each = 28), ] #multiplies each row 30 times
+feb_2021 <- feb_2021 %>% group_by(year, month, day) %>% mutate(day=1:28) # add days from 1 to 30
+
+feb_2021 <- feb_2021[rep(seq_len(nrow(feb_2021)), each = 24), ] #For each day, add 24 hours
+feb_2021 <- feb_2021 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+feb_2021 <- feb_2021 %>% mutate(day_co2=(desc_co2/(28-9)))
+```
+
+29) March - 2021 
+```{r}
+mar_2021 <- co2[42,]
+
+mar_2021 <- mar_2021 %>% mutate(day=1, hour=0) #create the variable day
+mar_2021 <- mar_2021[rep(seq_len(nrow(mar_2021)), each = 31), ] #multiplies each row 30 times
+mar_2021 <- mar_2021 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+mar_2021 <- mar_2021[rep(seq_len(nrow(mar_2021)), each = 24), ] #For each day, add 24 hours
+mar_2021 <- mar_2021 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+mar_2021 <- mar_2021 %>% mutate(day_co2=(desc_co2/31))
+```
+
+30) April 2021 
+```{r}
+apr_2021 <- co2[43,]
+
+apr_2021 <- apr_2021 %>% mutate(day=1, hour=0) #create the variable day
+apr_2021 <- apr_2021[rep(seq_len(nrow(apr_2021)), each = 30), ] #multiplies each row 30 times
+apr_2021 <- apr_2021 %>% group_by(year, month, day) %>% mutate(day=1:30) # add days from 1 to 30
+
+apr_2021 <- apr_2021[rep(seq_len(nrow(apr_2021)), each = 24), ] #For each day, add 24 hours
+apr_2021 <- apr_2021 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+apr_2021 <- apr_2021 %>% mutate(day_co2=(desc_co2/(30-7)))
+```
+
+31) May - 2021 
+```{r}
+may_2021 <- co2[44,]
+
+may_2021 <- may_2021 %>% mutate(day=1, hour=0) #create the variable day
+may_2021 <- may_2021[rep(seq_len(nrow(may_2021)), each = 31), ] #multiplies each row 30 times
+may_2021 <- may_2021 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+may_2021 <- may_2021[rep(seq_len(nrow(may_2021)), each = 24), ] #For each day, add 24 hours
+may_2021 <- may_2021 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+may_2021 <- may_2021 %>% mutate(day_co2=(desc_co2/(31-4)))
+```
+
+32) June 2021 
+```{r}
+june_2021 <- co2[45,]
+
+june_2021 <- june_2021 %>% mutate(day=1, hour=0) #create the variable day
+june_2021 <- june_2021[rep(seq_len(nrow(june_2021)), each = 30), ] #multiplies each row 30 times
+june_2021 <- june_2021 %>% group_by(year, month, day) %>% mutate(day=1:30) # add days from 1 to 30
+
+june_2021 <- june_2021[rep(seq_len(nrow(june_2021)), each = 24), ] #For each day, add 24 hours
+june_2021 <- june_2021 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+june_2021 <- june_2021 %>% mutate(day_co2=(desc_co2/(30-7)))
+```
+
+
+33) July - 2021 
+```{r}
+july_2021 <- co2[46,]
+
+july_2021 <- july_2021 %>% mutate(day=1, hour=0) #create the variable day
+july_2021 <- july_2021[rep(seq_len(nrow(july_2021)), each = 31), ] #multiplies each row 30 times
+july_2021 <- july_2021 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+july_2021 <- july_2021[rep(seq_len(nrow(july_2021)), each = 24), ] #For each day, add 24 hours
+july_2021 <- july_2021 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+july_2021 <- july_2021 %>% mutate(day_co2=(desc_co2/(31-7)))
+```
+
+34) August - 2021 
+```{r}
+aug_2021 <- co2[47,]
+
+aug_2021 <- aug_2021 %>% mutate(day=1, hour=0) #create the variable day
+aug_2021 <- aug_2021[rep(seq_len(nrow(aug_2021)), each = 31), ] #multiplies each row 30 times
+aug_2021 <- aug_2021 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+aug_2021 <- aug_2021[rep(seq_len(nrow(aug_2021)), each = 24), ] #For each day, add 24 hours
+aug_2021 <- aug_2021 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+aug_2021 <- aug_2021 %>% mutate(day_co2=(desc_co2/31))
+```
+
+35) September 2021 
+```{r}
+sep_2021 <- co2[48,]
+
+sep_2021 <- sep_2021 %>% mutate(day=1, hour=0) #create the variable day
+sep_2021 <- sep_2021[rep(seq_len(nrow(sep_2021)), each = 30), ] #multiplies each row 30 times
+sep_2021 <- sep_2021 %>% group_by(year, month, day) %>% mutate(day=1:30) # add days from 1 to 30
+
+sep_2021 <- sep_2021[rep(seq_len(nrow(sep_2021)), each = 24), ] #For each day, add 24 hours
+sep_2021 <- sep_2021 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+sep_2021 <- sep_2021 %>% mutate(day_co2=(desc_co2/30))
+```
+
+36) October - 2021 
+```{r}
+oct_2021 <- co2[38,]
+
+oct_2021 <- oct_2021 %>% mutate(day=1, hour=0) #create the variable day
+oct_2021 <- oct_2021[rep(seq_len(nrow(oct_2021)), each = 31), ] #multiplies each row 30 times
+oct_2021 <- oct_2021 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+oct_2021 <- oct_2021[rep(seq_len(nrow(oct_2021)), each = 24), ] #For each day, add 24 hours
+oct_2021 <- oct_2021 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+oct_2021 <- oct_2021 %>% mutate(day_co2=(desc_co2/31))
+```
+
+37) November 2021 
+```{r}
+nov_2021 <- co2[39,]
+
+nov_2021 <- nov_2021 %>% mutate(day=1, hour=0) #create the variable day
+nov_2021 <- nov_2021[rep(seq_len(nrow(nov_2021)), each = 30), ] #multiplies each row 30 times
+nov_2021 <- nov_2021 %>% group_by(year, month, day) %>% mutate(day=1:30) # add days from 1 to 30
+
+nov_2021 <- nov_2021[rep(seq_len(nrow(nov_2021)), each = 24), ] #For each day, add 24 hours
+nov_2021 <- nov_2021 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+nov_2021 <- nov_2021 %>% mutate(day_co2=(desc_co2/30))
+```
+
+38) December - 2021 
+```{r}
+dec_2021 <- co2[40,]
+
+dec_2021 <- dec_2021 %>% mutate(day=1, hour=0) #create the variable day
+dec_2021 <- dec_2021[rep(seq_len(nrow(dec_2021)), each = 31), ] #multiplies each row 30 times
+dec_2021 <- dec_2021 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+dec_2021 <- dec_2021[rep(seq_len(nrow(dec_2021)), each = 24), ] #For each day, add 24 hours
+dec_2021 <- dec_2021 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+dec_2021 <- dec_2021 %>% mutate(day_co2=(desc_co2/31))
+```
+
+```{r}
+co2_2021 <- rbind(jan_2021, feb_2021, mar_2021, apr_2021, may_2021, june_2021, july_2021, aug_2021, sep_2021, oct_2021, nov_2021, dec_2021)
+rm(jan_2021, feb_2021, mar_2021, apr_2021, may_2021, june_2021, july_2021, aug_2021, sep_2021, oct_2021, nov_2021, dec_2021)
+```
+
+#2022#
+39) January - 2022
+```{r}
+jan_2022 <- co2[49,]
+
+jan_2022 <- jan_2022 %>% mutate(day=1, hour=0) #create the variable day
+jan_2022 <- jan_2022[rep(seq_len(nrow(jan_2022)), each = 31), ] #multiplies each row 30 times
+jan_2022 <- jan_2022 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+jan_2022 <- jan_2022[rep(seq_len(nrow(jan_2022)), each = 24), ] #For each day, add 24 hours
+jan_2022 <- jan_2022 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+jan_2022 <- jan_2022 %>% mutate(day_co2=(desc_co2/31))
+```
+
+40) February - 2022
+```{r}
+feb_2022 <- co2[50,]
+
+feb_2022 <- feb_2022 %>% mutate(day=1, hour=0) #create the variable day
+feb_2022 <- feb_2022[rep(seq_len(nrow(feb_2022)), each = 28), ] #multiplies each row 30 times
+feb_2022 <- feb_2022 %>% group_by(year, month, day) %>% mutate(day=1:28) # add days from 1 to 30
+
+feb_2022 <- feb_2022[rep(seq_len(nrow(feb_2022)), each = 24), ] #For each day, add 24 hours
+feb_2022 <- feb_2022 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+feb_2022 <- feb_2022 %>% mutate(day_co2=(desc_co2/28))
+```
+
+41) March - 2022
+```{r}
+mar_2022 <- co2[51,]
+
+mar_2022 <- mar_2022 %>% mutate(day=1, hour=0) #create the variable day
+mar_2022 <- mar_2022[rep(seq_len(nrow(mar_2022)), each = 31), ] #multiplies each row 30 times
+mar_2022 <- mar_2022 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+mar_2022 <- mar_2022[rep(seq_len(nrow(mar_2022)), each = 24), ] #For each day, add 24 hours
+mar_2022 <- mar_2022 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+mar_2022 <- mar_2022 %>% mutate(day_co2=(desc_co2/(31-3)))
+```
+
+42) April 2022 
+```{r}
+apr_2022 <- co2[52,]
+
+apr_2022 <- apr_2022 %>% mutate(day=1, hour=0) #create the variable day
+apr_2022 <- apr_2022[rep(seq_len(nrow(apr_2022)), each = 30), ] #multiplies each row 30 times
+apr_2022 <- apr_2022 %>% group_by(year, month, day) %>% mutate(day=1:30) # add days from 1 to 30
+
+apr_2022 <- apr_2022[rep(seq_len(nrow(apr_2022)), each = 24), ] #For each day, add 24 hours
+apr_2022 <- apr_2022 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+apr_2022 <- apr_2022 %>% mutate(day_co2=(desc_co2/(30-17)))
+```
+
+43) May - 2022 
+```{r}
+may_2022 <- co2[53,]
+
+may_2022 <- may_2022 %>% mutate(day=1, hour=0) #create the variable day
+may_2022 <- may_2022[rep(seq_len(nrow(may_2022)), each = 31), ] #multiplies each row 30 times
+may_2022 <- may_2022 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+may_2022 <- may_2022[rep(seq_len(nrow(may_2022)), each = 24), ] #For each day, add 24 hours
+may_2022 <- may_2022 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+may_2022 <- may_2022 %>% mutate(day_co2=(desc_co2/(31-11)))
+```
+
+44) June 2022 
+```{r}
+june_2022 <- co2[54,]
+
+june_2022 <- june_2022 %>% mutate(day=1, hour=0) #create the variable day
+june_2022 <- june_2022[rep(seq_len(nrow(june_2022)), each = 30), ] #multiplies each row 30 times
+june_2022 <- june_2022 %>% group_by(year, month, day) %>% mutate(day=1:30) # add days from 1 to 30
+
+june_2022 <- june_2022[rep(seq_len(nrow(june_2022)), each = 24), ] #For each day, add 24 hours
+june_2022 <- june_2022 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+june_2022 <- june_2022 %>% mutate(day_co2=(desc_co2/(30-5)))
+```
+
+
+45) July - 2022 
+```{r}
+july_2022 <- co2[55,]
+
+july_2022 <- july_2022 %>% mutate(day=1, hour=0) #create the variable day
+july_2022 <- july_2022[rep(seq_len(nrow(july_2022)), each = 31), ] #multiplies each row 30 times
+july_2022 <- july_2022 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+july_2022 <- july_2022[rep(seq_len(nrow(july_2022)), each = 24), ] #For each day, add 24 hours
+july_2022 <- july_2022 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+july_2022 <- july_2022 %>% mutate(day_co2=(desc_co2/(31-12)))
+```
+
+46) August - 2022 
+```{r}
+aug_2022 <- co2[56,]
+
+aug_2022 <- aug_2022 %>% mutate(day=1, hour=0) #create the variable day
+aug_2022 <- aug_2022[rep(seq_len(nrow(aug_2022)), each = 31), ] #multiplies each row 30 times
+aug_2022 <- aug_2022 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+
+aug_2022 <- aug_2022[rep(seq_len(nrow(aug_2022)), each = 24), ] #For each day, add 24 hours
+aug_2022 <- aug_2022 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
+
+aug_2022 <- aug_2022 %>% mutate(day_co2=(desc_co2/(31-14)))
+```
+
+```{r}
+co2_2022 <- rbind(jan_2022, feb_2022, mar_2022, apr_2022, may_2022, june_2022, july_2022, aug_2022)
+rm(jan_2022, feb_2022, mar_2022, apr_2022, may_2022, june_2022, july_2022, aug_2022)
+```
+
+append them and save it
+```{r}
+final_co2_G <- rbind(co2_2018, co2_2019, co2_2020, co2_2021, co2_2022)
+
+save(final_co2_G, file= "C:/Users/natal/OneDrive - University of Edinburgh/Net_metering_UY/Final_project/Gurobi/final_co2_G.RData")
+```
+
+

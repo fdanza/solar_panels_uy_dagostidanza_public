@@ -1,0 +1,157 @@
+---
+title:   "Microgenerators: Descriptive Statistics"
+authors: "Natalia D'Agosti & Facundo Danza" 
+---
+
+
+# Load the packages
+
+First, we load the necessary pacakges:
+```{r}
+rm(list=ls())
+gc()
+```
+
+Second, we load the packages
+```{r}
+# install.packages("pacman")
+pacman::p_load(tidyverse, readxl, lubridate, margins,
+               sandwich, arm, fixest, gapminder, 
+               #sunab, 
+               car, fplot, did)
+```
+
+Third, we set the plotting theme:
+```{r}
+theme_set(theme_bw())
+```
+
+Then, we load the directories:
+```{r}
+dir        <- list()
+dir$root   <- dirname(getwd())
+dir$data   <- paste0(dirname(getwd()), "/data/")
+dir$fig    <- paste0(dirname(getwd()), "/figures/")
+dir$tab    <- paste0(dirname(getwd()), "/tables/")
+```
+
+
+# Clean the databases
+
+Upload the data
+```{r}
+MG_data <- 
+  read_excel(paste0(dir$data,"data/Documento 3.xlsx"))
+```
+
+```{r}
+names(MG_data) <- 
+  c("ID", 
+    "capacity_mg", 
+    "state", 
+    "tariff", 
+    "installation_date", 
+    "type", 
+    "capacity_hired", 
+    paste0("kwh_month_minus", 1:12))
+```
+
+## Count the number of solar panels
+```{r}
+MG_data = 
+  MG_data %>% 
+  mutate(inst_date = as.Date(installation_date))
+
+MG_data$inst_month_yr <- format(
+  as.Date(MG_data$inst_date), "%Y-%m")
+```
+
+```{r}
+x_label = "2010-01"
+
+for (i in seq(2012,2024,2)) {
+  x_label = c(x_label, paste0(i,"-01"))
+}
+
+plot_new_micro2 <- MG_data %>%
+  filter(type == "NEGOCIO") %>%
+  group_by(inst_month_yr) %>% 
+  summarise(sum_n = n()) %>%
+  ggplot(aes(x=inst_month_yr, y=sum_n, 
+             color="New Solar"), size=2) +
+  geom_point(size=2, color="darkgray") + 
+  theme(text = element_text(size = 15)) + 
+  labs(y = "Solar Panel Installations" ,x = "Date") + 
+  scale_x_discrete(breaks = x_label) +
+  theme(legend.key.size = unit(1, 'cm'))
+
+plot_new_micro2
+```
+
+```{r}
+ggsave(paste0(dir$fig,"plot_new_micro3.png"), 
+              width = 7, height = 4.5)
+```
+
+## Tariff of each business
+```{r}
+MG_data_firms = 
+  MG_data %>% 
+  filter(type == "NEGOCIO") %>%
+  arrange(installation_date)
+```
+
+Percentage of each tariff:
+```{r}
+all_tariffs = 
+  unique(MG_data_firms$tariff)
+```
+
+```{r}
+MG_data_firms_clean = 
+  MG_data_firms %>% 
+  filter(installation_date <+ as.Date("10-01-2022"))
+```
+
+```{r}
+for (t in all_tariffs) {
+  print(paste0("Percentage of ", t, " tariff is ",
+        MG_data_firms %>%
+          summarise(percentage = mean(tariff == t)))[[1]])
+
+}
+```
+
+## Firm type
+
+```{r}
+firm_type = 
+  read_excel(paste0(dir$data, "constructed_data/firm_names_manual.xls"))
+```
+
+```{r}
+all_types = 
+  unique(firm_type$Type)
+```
+
+```{r}
+for (t in all_types) {
+  print(paste0("Percentage of ", t, " is ",
+        firm_type %>%
+          summarise(percentage = mean(Type == t, na.rm = T)))[[1]])
+
+}
+```
+
+```{r}
+firm_type %>%
+  filter(Type == "Commercial") %>%
+  summarise(percentage = mean(SA, na.rm = T))
+```
+
+```{r}
+table(firm_type$Industry)/sum(!is.na(firm_type$Industry))
+```
+
+
+

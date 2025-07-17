@@ -1,0 +1,225 @@
+---
+title:   "Evolution of Price"
+authors: "Natalia D'Agosti & Facundo Danza" 
+---
+
+# Load the packages
+
+First, we load the necessary pacakges:
+```{r}
+rm(list=ls())
+gc()
+```
+
+Second, we load the packages
+```{r}
+# install.packages("pacman")
+pacman::p_load(tidyverse, lubridate, readxl, 
+               sandwich, arm, fixest, gapminder, car, 
+               gurobi, Matrix, boot)
+#library(margins)
+```
+
+Third, we set the plotting theme:
+```{r}
+theme_set(theme_bw())
+```
+
+Then, we load the directories:
+```{r}
+dir        <- list()
+dir$root   <- dirname(getwd())
+dir$data   <- paste0(dirname(getwd()), "/data/")
+dir$fig    <- paste0(dirname(getwd()), "/figures/")
+dir$tab    <- paste0(dirname(getwd()), "/tables/")
+```
+
+
+# Evolution of Prices
+
+## MC2
+```{r, warning = F}
+evolution_prices = 
+  read_excel(paste0(dir$data, "UTE/", "precios_limpio.xlsx"), 
+             sheet = "empresas_mediano_c1")
+```
+
+```{r}
+evolution_prices = 
+  evolution_prices %>%
+  mutate(`...25` = NULL, 
+         `...27` = NULL,
+         `...29` = NULL)
+```
+
+
+```{r}
+names(evolution_prices) <- 
+  c("variable", "unit", 
+    paste("d_",c(
+    "01/01/2007", "06/01/2007", "09/19/2007", 
+    "02/01/2008", "06/01/2008", 
+    "02/01/2009", "05/15/2009", "08/01/2009", 
+    "02/01/2010", 
+    "02/18/2011",
+    "01/01/2012", "09/24/2012", 
+    "02/01/2013", 
+    "01/01/2014", "07/01/2014",
+    "01/16/2015",
+    "01/13/2016",
+    "01/01/2017", 
+    "01/01/2018",
+    "01/07/2019",
+    "04/01/2020",
+    "01/01/2021", 
+    "01/01/2022",
+    "01/01/2023",
+    "07/01/2023",
+    "01/01/2024",
+    "12/01/2024",
+    "01/01/2025", 
+    "07/01/2025")
+    )
+    )
+```
+
+
+
+```{r}
+evolution_prices_long = 
+  evolution_prices %>% 
+  filter(variable != "MEDIANOS CONSUMIDORES" & 
+           variable != "M.C.1" & 
+           variable != "ENERGIA" &
+           !is.na(variable), 
+         variable != "POTENCIA MAXIMA MEDIDA") %>%
+  pivot_longer(starts_with("d_"),
+               names_to = "date", 
+               values_to = "prices", 
+               names_prefix = "d_")
+```
+
+```{r}
+evolution_prices_long = 
+  evolution_prices_long %>%
+  mutate(date = as.Date(date, "%m/%d/%Y"), 
+         prices = as.numeric(prices))
+```
+
+```{r}
+write_csv(evolution_prices_long, 
+          paste0(dir$data,"constructed_data/price_long_mc1.csv"))
+```
+
+```{r}
+evolution_prices_long %>%
+  filter(variable %in% c("Horas Punta", "Horas Llano", 
+                         "Horas Valle")) %>%
+  mutate(Rate = case_when(variable == "Horas Punta" ~ "High Demand Hours", 
+                          variable == "Horas Llano" ~ "Medium Demand Hours", 
+                          variable == "Horas Valle" ~ "Low Demand Hours")) %>%
+  ggplot(aes(x = date, 
+             y = prices, 
+             color = Rate)) +
+  geom_line() +
+  geom_point() +
+# scale_x_discrete(breaks = x_label) +
+  labs(x = "Date", 
+       y = "Price ($/Kwh)") + 
+  ggtitle("Evolution of Prices", 
+          subtitle = "Firms - Medium-Size Consumer") +
+  theme(legend.title = element_blank() , 
+        legend.position = "bottom")
+```
+
+```{r}
+# ggsave(paste0(dir$fig,"uy_price_mc1.png"),
+#        width = 6, height = 4.5)
+```
+
+## MC2
+```{r, warning = F}
+evolution_prices = 
+  read_excel(paste0(dir$data, "UTE/", "precios_limpio.xlsx"), 
+             sheet = "empresas_mediano_c2")
+```
+
+```{r}
+names(evolution_prices) <- 
+  c("variable", "unit", 
+    paste("d_",c(
+    "01/01/2007", "06/01/2007", "09/19/2007", 
+    "02/01/2008", "06/01/2008", 
+    "02/01/2009", "05/15/2009", "08/01/2009", 
+    "02/01/2010", 
+    "02/18/2011",
+    "01/01/2012", "09/24/2012", 
+    "02/01/2013", 
+    "01/01/2014", "07/01/2014",
+    "01/16/2015",
+    "01/13/2016",
+    "01/01/2017", 
+    "01/01/2018",
+    "01/07/2019",
+    "04/01/2020",
+    "01/01/2021", 
+    "01/01/2022",
+    "07/01/2022",
+    "01/01/2023",
+    "07/01/2023",
+    "01/01/2024",
+    "01/01/2025")
+    )
+    )
+```
+
+
+
+```{r}
+evolution_prices_long = 
+  evolution_prices %>% 
+  filter(variable != "ENERGIA" & 
+           variable != "Date" & 
+           variable != "POTENCIA MAXIMA MEDIDA") %>%
+  pivot_longer(starts_with("d_"),
+               names_to = "date", 
+               values_to = "prices", 
+               names_prefix = "d_")
+```
+
+```{r}
+evolution_prices_long = 
+  evolution_prices_long %>%
+  mutate(date = as.Date(date, "%m/%d/%Y"), 
+         prices = as.numeric(prices))
+```
+
+```{r}
+write_csv(evolution_prices_long, 
+          paste0(dir$data,"constructed_data/price_long_mc2.csv"))
+```
+
+```{r}
+evolution_prices_long %>%
+  filter(variable %in% c("Horas Punta", "Horas Llano", 
+                         "Horas Valle")) %>%
+  mutate(Rate = case_when(variable == "Horas Punta" ~ "High Demand Hours", 
+                          variable == "Horas Llano" ~ "Medium Demand Hours", 
+                          variable == "Horas Valle" ~ "Low Demand Hours")) %>%
+  ggplot(aes(x = date, 
+             y = prices, 
+             color = Rate)) +
+  geom_point() +
+# scale_x_discrete(breaks = x_label) +
+  labs(x = "Date", 
+       y = "Price ($/Kwh)") + 
+  ggtitle("Evolution of Prices", 
+          subtitle = "Firms - Medium-Size Consumer") +
+  theme(legend.title = element_blank() , 
+        legend.position = "bottom")
+```
+
+```{r}
+# ggsave(paste0(dir$fig,"uy_price_mc2.png"),
+#        width = 6, height = 4.5)
+```

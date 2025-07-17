@@ -1,0 +1,590 @@
+Map of all the micro-generators 
+
+
+```{r}
+rm(list=ls())
+gc()
+```
+
+Upload the packages:
+```{r}
+pacman::p_load(sf, tidyverse, data.table, hrbrthemes, lwgeom, 
+              maps, mapdata, spData, tigris, tidycensus, 
+              leaflet, mapview, tmap, tmaptools, ggplot2, 
+              geouy, readxl)
+```
+
+
+```{r}
+theme_set(theme_bw())
+```
+
+Then, we load the directories:
+```{r}
+dir        <- list()
+dir$root   <- dirname(getwd())
+dir$data   <- paste0(dirname(getwd()), "/Data/")
+dir$fig    <- paste0(dirname(getwd()), "/figures/")
+dir$tab    <- paste0(dirname(getwd()), "/Tables/")
+```
+
+# Maps
+
+Upload the Map of Uruguay
+```{r}
+uy = st_as_sf(
+  map("world","uruguay", plot = FALSE, fill = TRUE))
+
+uy_map = ggplot(uy) + 
+  geom_sf(fill = "white", col = "blue", lwd = 0.3) +
+labs(title = "The paisito" ,subtitle = "URUGUAY")
+
+uy_map
+```
+
+
+# Microgenerators
+
+```{r}
+mg_solar <- sf::st_read(paste0(dir$data,
+                               "Data_map_MG/microgeneradores_solar.kml"))
+```
+
+
+```{r}
+mg_solar <- 
+  st_zm(mg_solar)
+
+mg_solar = 
+  st_transform(mg_solar, 
+               crs=st_crs(uy))
+
+mgsolar2 = 
+  mg_solar # drop 2 observations which are outside the boundaries
+
+mg_solar = 
+  st_crop(mg_solar, uy)
+```
+
+
+```{r}
+map <- ggplot() + 
+  geom_sf(data = uy, alpha = 0.8, fill = "white", col = "black") + 
+  geom_sf(data = mg_solar, col = "lightblue",  lwd = 1) + 
+  theme(text = element_text(size = 15),
+        axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks = element_blank()) +
+  labs(title = "Electricity Farms")
+
+map
+```
+
+```{r}
+ggsave(paste0(dir$fig,"map.png"), 
+       width = 7, height = 4.5)
+```
+
+# Heterogeneity
+```{r}
+mg_solar_hhf <- mg_solar %>% 
+  separate(Name, 
+           c("Name1", "Name2", "Name3", "Name4", "Name5", "Name6", "Name7"), 
+           sep=" ", remove=FALSE)
+
+mg_solar_hhf <- mg_solar_hhf %>% 
+  mutate(firms_dummy =
+                                        case_when(Name1=="FIDEICOMISO" ~1,
+                                        Name1=="C.I.E.M.S.A." ~1,
+                                        Name1=="U.T.E." ~ 1,
+                                        Name1=="INTENDENCIA"~ 1,
+                                        Name1=="COMISION" ~ 1, 
+                                        Name1=="UTE" ~ 1,
+                                        Name1=="CORPORACION"~ 1, 
+                                        Name1=="CORP" ~ 1,    
+                                        Name1=="CONSEJO"~ 1,       
+                                        Name1=="TELEFONICA"~ 1,
+                                        Name1=="FID"~ 1,
+                                        Name1=="SA"~ 1,
+                                        Name1=="ASOCIACION"~ 1,
+                                        Name1=="COOPERATIVA"~ 1,
+                                        Name1=="DUCSA"~ 1,
+                                        Name1=="BBVA"~ 1,
+                                        Name1=="SONARE,SRL"~ 1,
+                                        Name1=="FACULTAD"~ 1,
+                                        Name1=="ASOC.CIVIL"~ 1,
+                                        Name1=="TELLAGORRYS.R.L."~ 1,
+                                        Name1=="SOCIEDAD"~ 1,
+                                        Name1=="CLUB"~ 1,
+                                        Name1=="APOSTOLICA"~ 1,
+                                        Name1=="S.A."~ 1,
+                                        Name1=="SERVICIOS"~ 1,
+                                        Name1=="HOPRESA" ~1,
+                                        Name1=="NORTE" ~1,
+                                        Name1=="AGROPECUARIA" ~1,
+                                        Name1=="Telefónica"~1,
+                                        Name1=="SUC.DE" ~1,
+                                        Name1=="LOGIPARK,SA." ~1,
+                                        Name1=="CENTRO" ~1,
+                                        Name1=="CORP.DEL" ~1,
+                                        Name1=="CONS.EDUC.TECNICO-PROFESIONAL" ~1,
+                                        Name1=="ASPROE" ~1,
+                                        Name1=="AVI-PORCLTDA" ~1,
+                                        Name1=="MAOSOL.S.A."~1,
+                                        Name1=="BLUMARY" ~1,
+                                        Name1=="J.S.LIMTDA" ~1,
+                                        Name1=="UTEC" ~1,
+                                        Name1=="DISTRIBUIDORA" ~ 1,
+                                        Name1=="DURNFORD," ~1,
+                                        Name1=="HOGAR" ~1,
+                                   
+                                        Name2=="S.A."~ 1,
+                                        Name2=="S.A.,."~ 1,
+                                        Name2=="S.A"~ 1,
+                                        Name2=="SA"~ 1,
+                                        Name2=="SA."~ 1,
+                                        Name2=="LTDA."~ 1,
+                                        Name2=="LTDA"~ 1,
+                                        Name2=="S.R.L"~ 1, 
+                                        Name2=="S.R.L."~ 1,
+                                        Name2=="SRL"~ 1,  
+                                        Name2=="LIMITADA"~ 1,   
+                                        Name2=="FLORENCIA"~ 1,
+                                        Name2=="SOCIEDAD"~ 1,
+                                        Name2=="DESAFIO"~ 1,
+                                        Name2=="CHACAREROS"~ 1,
+                                        Name2=="PIAMONTES,SRL" ~1,
+                                        Name2=="SAS"~ 1,
+                                               
+                                        Name3=="S.A."~ 1,
+                                        Name3=="S.A.,."~ 1,
+                                        Name3=="S.A"~ 1,  
+                                        Name3=="SA"~ 1,
+                                        Name3=="SA."~ 1,       
+                                        Name3=="LIMITADA"~ 1,
+                                        Name3=="SOCIEDAD"~ 1,
+                                        Name3=="COMERCIAL"~ 1,       
+                                        Name3=="SOC."~ 1,
+                                        Name3=="A"~ 1,       
+                                        Name3=="LTDA"~ 1,       
+                                        Name3=="LTDA."~ 1,
+                                        Name3=="LTDA.,"~ 1,
+                                        Name3=="S.R.L."~ 1,
+                                        Name3=="S.R.L"~ 1,
+                                        Name3=="SRL"~ 1,     
+                                        Name3=="SCA"~ 1,
+                                        Name3=="SCA,."~ 1,
+                                        Name3=="ANONIMA"~ 1,
+                                        Name3=="CIA"~ 1,
+                                        Name3=="CIA.S.A"~ 1,
+                                               
+                                        Name4=="S.A."~ 1,
+                                        Name4=="S.A"~ 1,
+                                        Name4=="S.A,"~ 1,
+                                        Name4=="SA"~ 1, 
+                                        Name4=="LTDA"~ 1,
+                                        Name4=="LTDA."~ 1,  
+                                        Name4=="ANONIMA"~ 1,   
+                                        Name4=="S.R.L."~ 1,
+                                        Name4=="S.R.L"~ 1,
+                                        Name4=="SRL"~ 1,
+                                        Name4=="SOCIEDAD"~ 1,   
+                                        Name4=="CIA"~ 1,
+                                               
+                                        Name5=="NACION"~ 1,   
+                                        Name5=="LTDA"~ 1,
+                                        Name5=="LTDA."~ 1,       
+                                        Name5=="S.A."~ 1,
+                                        Name5=="S.A"~ 1,
+                                        Name5=="SA"~ 1,
+                                        Name5=="SRL"~ 1,       
+                                        Name5=="S.R.L."~ 1,
+                                        
+                                        Name6=="S.A."~ 1,
+                                        Name6=="S.A"~ 1,
+                                        Name6=="SA"~ 1,
+                                        Name6=="SOCIEDAD"~ 1,
+                                        Name6=="SUC"~ 1,
+                                        
+                                        Name7=="LIMITADA"~ 1 , TRUE ~0))
+```
+
+```{r}
+mg_solar_data = 
+  mg_solar_hhf %>% 
+  st_drop_geometry() %>%
+  filter(firms_dummy == 1)
+
+write_csv(mg_solar_data, 
+          paste0(dir$data, "constructed_data/firm_names.csv"))
+```
+
+
+
+```{r}
+mg_solar_hhf <- mg_solar_hhf %>% 
+  mutate(Agent =
+           case_when(firms_dummy==1 ~"Firms", TRUE~"Households"))
+                                           
+```
+
+Check if the households are mostly households:it works
+```{r}
+#check <- mg_solar_hhf %>% filter(firms_dummy==0) 
+#check2 <- mg_solar_hhf %>% filter(firms_dummy==1)
+```
+
+
+```{r}
+all_uy <- load_geouy(c=  
+                       "Departamentos",
+                     crs = 32721, folder = tempdir())
+
+all_uy = st_transform(all_uy, 
+                      crs=st_crs(uy))
+```
+
+
+```{r}
+map2 <- ggplot() + geom_sf(data = all_uy, alpha = 0.8, 
+                           fill = "white", col = "black") +
+  geom_sf(data = mg_solar_hhf, lwd = 2 , aes(color = Agent)) + 
+  theme(text = element_text(size = 15),
+        axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks = element_blank()) +
+  labs(title = "Solar Micro-generators")
+
+map2
+```
+
+
+```{r}
+ggsave(paste0(dir$fig,"map2.png"), 
+       width = 7, height = 4.5)
+```
+
+Same map but with Montevideo - Capital City:
+```{r}
+mvdo <- all_uy %>% 
+  filter(nombre=="MONTEVIDEO")
+
+mg_solar_hhf = st_transform(mg_solar_hhf, 
+                            crs = st_crs(mvdo))
+
+sf_use_s2(FALSE)
+overlap <- st_intersection(mvdo, 
+                           mg_solar_hhf)
+
+map3 <- ggplot() +
+  geom_sf(data = mvdo, alpha = 0.8, fill = "white", col = "black") +
+  geom_sf(data = overlap, lwd = 2 , aes(color = Agent)) +
+  theme(text = element_text(size = 15),
+        axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks = element_blank()) +
+  labs(title = "Solar Micro-generators",
+       subtitle = "Montevideo")
+
+map3
+```
+
+
+```{r}
+ggsave(paste0(dir$fig,"map3.png"), 
+       width = 7, height = 4.5)
+```
+ 
+ 
+## Add capacity
+
+Arrange the capacity install by firms and hh:
+```{r}
+cap_data <- 
+  read_excel(paste0(dir$data, "cap_installed/data.xlsx"), 
+             sheet=2 ,range="A1:F1001")
+
+cap_data <- cap_data %>% rename("Name"       = "Generador ",
+                                "source"     = "Fuente Primaria",
+                                "state"      = "Estado",
+                                "power_aut"  = "Potencia Autorizada",
+                                "power_comp" = "Potencia Comprometida",
+                                "power_inst" = "Potencia")
+
+cap_data <- cap_data %>% 
+  dplyr::select(-c("power_comp"))
+
+cap_data <- cap_data %>% mutate(
+  Name=case_when(
+  Name=="AGROPECUARIA SALTO S.R.L." ~ "AGROPECUARIA  SALTO S.R.L.", 
+  Name=="G Y F LIMITADA" ~ "G  Y  F  LIMITADA",
+  Name=="GALLINAL ALGORTA, SUSANA MARIA" ~ "GALLINAL ALGORTA, SUSANA  MARIA",
+  Name=="MISUROL S.A. (2)" ~ "MISUROL S.A.  (2)",
+  Name=="ROIG PEREZ, DAVID ANDRE" ~ "ROIG PEREZ,  DAVID ANDRE",
+  Name=="TELEFONICA MOV. URU, S.A. Base Pintado" ~ "TELEFONICA MOV. URU, S.A.  Base Pintado",
+  Name=="TERLAR S A (1)" ~ "TERLAR S A  (1)",
+  TRUE ~ Name))
+
+mg_solar_hhf <- mg_solar_hhf %>% mutate(Name=case_when(
+  Name=="BRILIARD S.A. " ~ "BRILIARD S.A.", 
+  Name=="CORPORACION DEL PRESIDENTE DE LA IGLESIA  (Mormon)" ~ "CORPORACION DEL PRESIDENTE DE LA IGLESIA (Mormon)",
+  TRUE ~ Name))
+
+cap_data <- 
+  cap_data %>% separate(power_inst, c("power_inst1", "power_inst_unit"), sep=" ", remove=FALSE)
+
+cap_data$power_inst1 <- 
+  as.numeric(cap_data$power_inst1)
+
+cap_data_merge <- 
+  base::merge(mg_solar_hhf, cap_data, by="Name")
+#There are 12 that should not merge
+# 1 from the mg_solar_hhf database
+# 9 from the cap_data
+#Cant do the merge, do it in Stata that works perfectly
+
+#library(foreign)
+#mg_solar_hhf$geometry=NULL
+
+#mg_solar_hhf <- mg_solar_hhf %>% select(c("Name", "firms_dummy", "Agent", "geometry"))
+
+#write.dta(mg_solar_hhf, "mg_solar_hhf.dta")
+#write.dta(cap_data, "cap_data.dta")
+
+```
+ 
+ 
+```{r}
+cap_data_merge <- 
+  cap_data_merge %>% 
+  mutate(power_inst2=
+           power_inst1*1000) # to go from MW to Kw
+
+cap_data_merge2 = 
+  cap_data_merge
+cap_data_merge2 <- 
+  cap_data_merge2 %>% rename("Power" = 
+                               "power_inst2")
+
+map4 <- ggplot() + 
+  geom_sf(data = all_uy, alpha = 0.8, fill = "white", col = "black") +
+  geom_sf(data = cap_data_merge2 , aes(color = Agent, size = Power)) + 
+  theme(text = element_text(size = 15),
+        axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks = element_blank()) +
+  labs(title = "Solar Microgenerators")
+
+map4
+```
+
+
+```{r}
+ggsave(paste0(dir$fig, "map4.png"), 
+       width = 7, height = 4.5)
+```
+ 
+```{r}
+mvdo <- 
+  all_uy %>% 
+  filter(nombre=="MONTEVIDEO")
+
+cap_data_merge = 
+  st_transform(cap_data_merge, crs = 
+                 st_crs(mvdo))
+
+overlap <- 
+  st_intersection(mvdo, 
+                  cap_data_merge)
+
+overlap2 = 
+  overlap
+overlap2 <- 
+  overlap2 %>% rename("Power" = "power_inst2")
+
+map5 <- ggplot() +
+  geom_sf(data = mvdo, alpha = 0.8, fill = "white", col = "black") +
+  geom_sf(data = overlap2, aes(color = Agent, size = Power)) +
+  theme(text = element_text(size = 15),
+        axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks = element_blank()) +
+  labs(title = "Solar Microgenerators",
+       subtitle = "Montevideo")
+
+map5
+```
+
+
+```{r}
+ggsave(paste0(dir$fig, "map5.png"), 
+       width = 7, height = 4.5)
+```
+ 
+ 
+```{r}
+cap_data <- cap_data %>% 
+  separate(Name, c("Name1", "Name2", "Name3", "Name4", "Name5", "Name6", "Name7"), 
+           sep=" ", remove=FALSE)
+
+
+cap_data <- cap_data %>% 
+  mutate(firms_dummy =
+                                        case_when(Name1=="FIDEICOMISO" ~1,
+                                        Name1=="C.I.E.M.S.A." ~1,
+                                        Name1=="U.T.E." ~ 1,
+                                        Name1=="INTENDENCIA"~ 1,
+                                        Name1=="COMISION" ~ 1, 
+                                        Name1=="UTE" ~ 1,
+                                        Name1=="CORPORACION"~ 1, 
+                                        Name1=="CORP" ~ 1,    
+                                        Name1=="CONSEJO"~ 1,       
+                                        Name1=="TELEFONICA"~ 1,
+                                        Name1=="FID"~ 1,
+                                        Name1=="SA"~ 1,
+                                        Name1=="ASOCIACION"~ 1,
+                                        Name1=="COOPERATIVA"~ 1,
+                                        Name1=="DUCSA"~ 1,
+                                        Name1=="BBVA"~ 1,
+                                        Name1=="SONARE,SRL"~ 1,
+                                        Name1=="FACULTAD"~ 1,
+                                        Name1=="ASOC.CIVIL"~ 1,
+                                        Name1=="TELLAGORRYS.R.L."~ 1,
+                                        Name1=="SOCIEDAD"~ 1,
+                                        Name1=="CLUB"~ 1,
+                                        Name1=="APOSTOLICA"~ 1,
+                                        Name1=="S.A."~ 1,
+                                        Name1=="SERVICIOS"~ 1,
+                                        Name1=="HOPRESA" ~1,
+                                        Name1=="NORTE" ~1,
+                                        Name1=="AGROPECUARIA" ~1,
+                                        Name1=="Telefónica"~1,
+                                        Name1=="SUC.DE" ~1,
+                                        Name1=="LOGIPARK,SA." ~1,
+                                        Name1=="CENTRO" ~1,
+                                        Name1=="CORP.DEL" ~1,
+                                        Name1=="CONS.EDUC.TECNICO-PROFESIONAL" ~1,
+                                        Name1=="ASPROE" ~1,
+                                        Name1=="AVI-PORCLTDA" ~1,
+                                        Name1=="MAOSOL.S.A."~1,
+                                        Name1=="BLUMARY" ~1,
+                                        Name1=="J.S.LIMTDA" ~1,
+                                        Name1=="UTEC" ~1,
+                                        Name1=="DISTRIBUIDORA" ~ 1,
+                                        Name1=="DURNFORD," ~1,
+                                        Name1=="HOGAR" ~1,
+                                   
+                                        Name2=="S.A."~ 1,
+                                        Name2=="S.A.,."~ 1,
+                                        Name2=="S.A"~ 1,
+                                        Name2=="SA"~ 1,
+                                        Name2=="SA."~ 1,
+                                        Name2=="LTDA."~ 1,
+                                        Name2=="LTDA"~ 1,
+                                        Name2=="S.R.L"~ 1, 
+                                        Name2=="S.R.L."~ 1,
+                                        Name2=="SRL"~ 1,  
+                                        Name2=="LIMITADA"~ 1,   
+                                        Name2=="FLORENCIA"~ 1,
+                                        Name2=="SOCIEDAD"~ 1,
+                                        Name2=="DESAFIO"~ 1,
+                                        Name2=="CHACAREROS"~ 1,
+                                        Name2=="PIAMONTES,SRL" ~1,
+                                        Name2=="SAS"~ 1,
+                                               
+                                        Name3=="S.A."~ 1,
+                                        Name3=="S.A.,."~ 1,
+                                        Name3=="S.A"~ 1,  
+                                        Name3=="SA"~ 1,
+                                        Name3=="SA."~ 1,       
+                                        Name3=="LIMITADA"~ 1,
+                                        Name3=="SOCIEDAD"~ 1,
+                                        Name3=="COMERCIAL"~ 1,       
+                                        Name3=="SOC."~ 1,
+                                        Name3=="A"~ 1,       
+                                        Name3=="LTDA"~ 1,       
+                                        Name3=="LTDA."~ 1,
+                                        Name3=="LTDA.,"~ 1,
+                                        Name3=="S.R.L."~ 1,
+                                        Name3=="S.R.L"~ 1,
+                                        Name3=="SRL"~ 1,     
+                                        Name3=="SCA"~ 1,
+                                        Name3=="SCA,."~ 1,
+                                        Name3=="ANONIMA"~ 1,
+                                        Name3=="CIA"~ 1,
+                                        Name3=="CIA.S.A"~ 1,
+                                               
+                                        Name4=="S.A."~ 1,
+                                        Name4=="S.A"~ 1,
+                                        Name4=="S.A,"~ 1,
+                                        Name4=="SA"~ 1, 
+                                        Name4=="LTDA"~ 1,
+                                        Name4=="LTDA."~ 1,  
+                                        Name4=="ANONIMA"~ 1,   
+                                        Name4=="S.R.L."~ 1,
+                                        Name4=="S.R.L"~ 1,
+                                        Name4=="SRL"~ 1,
+                                        Name4=="SOCIEDAD"~ 1,   
+                                        Name4=="CIA"~ 1,
+                                               
+                                        Name5=="NACION"~ 1,   
+                                        Name5=="LTDA"~ 1,
+                                        Name5=="LTDA."~ 1,       
+                                        Name5=="S.A."~ 1,
+                                        Name5=="S.A"~ 1,
+                                        Name5=="SA"~ 1,
+                                        Name5=="SRL"~ 1,       
+                                        Name5=="S.R.L."~ 1,
+                                        
+                                        Name6=="S.A."~ 1,
+                                        Name6=="S.A"~ 1,
+                                        Name6=="SA"~ 1,
+                                        Name6=="SOCIEDAD"~ 1,
+                                        Name6=="SUC"~ 1,
+                                        
+                                        Name7=="LIMITADA"~ 1 , TRUE ~0))  
+
+cap_data <- 
+  cap_data %>% mutate(Agent =
+                        case_when(firms_dummy==1 ~"Firms", TRUE~"Households"))
+
+cap_data <- 
+  cap_data %>% mutate(power_inst2=power_inst1*1000) #to go from MW to KW
+
+cap_data_hh <- 
+  cap_data %>% filter(Agent=="Households")
+
+cap_data_hh %>% 
+  summarize(mean_ext=mean(cap_data_hh$power_inst2, na.rm=TRUE),
+            sd_ext=sd(cap_data_hh$power_inst2, na.rm=TRUE),
+            min_ext=min(cap_data_hh$power_inst2, na.rm=TRUE),
+            max_ext=max(cap_data_hh$power_inst2, na.rm=TRUE))
+```
+
+
+firms
+```{r}
+cap_data_f <- cap_data %>% 
+  filter(Agent=="Firms")
+
+cap_data_f %>% 
+  summarize(mean_ext=mean(cap_data_f$power_inst2, na.rm=TRUE),
+            sd_ext=sd(cap_data_f$power_inst2, na.rm=TRUE),
+            min_ext=min(cap_data_f$power_inst2, na.rm=TRUE),
+            max_ext=max(cap_data_f$power_inst2, na.rm=TRUE))
+```
+
+total
+```{r}
+cap_data %>% 
+  summarize(mean_ext=mean(cap_data$power_inst2, na.rm=TRUE), 
+            sd_ext=sd(cap_data$power_inst2, na.rm=TRUE), 
+            min_ext=min(cap_data$power_inst2, na.rm=TRUE), 
+            max_ext=max(cap_data$power_inst2, na.rm=TRUE))
+```
+
+Total production
+```{r}
+cap_data %>% 
+  summarize(sum_ext=sum(cap_data$power_inst1, na.rm=TRUE))
+```

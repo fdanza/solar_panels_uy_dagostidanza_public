@@ -1,18 +1,11 @@
 ---
-title:    "Clean Injection Data"
-authors:  "Natalia D'Agosti & Facundo Danza" 
+title: "Clean Data - CO2"
+authors: "Natalia D'Agosti & Facundo Danza" 
 ---
-
-# Introduction
-
-This code arranges the injection data to use it in the Gurobi optimization problem; that is, 
-the data of electricity injected into the grid is at household level at monthly level.
-
-First, we add all the microgenerators - thus, we recover the total of electricity injected in a certain month. Then, we transform this data from monthly to hourly.
 
 # Load the packages
 
-First, we load the necessary packages:
+First, we load the necessary pacakges:
 ```{r}
 rm(list=ls())
 gc()
@@ -21,7 +14,8 @@ gc()
 Second, we load the packages
 ```{r}
 # install.packages("pacman")
-pacman::p_load(readxl, dplyr)
+pacman::p_load(tidyverse, lubridate, readxl, 
+               sandwich, arm, fixest, gapminder, car)
 #library(margins)
 ```
 
@@ -34,99 +28,74 @@ Then, we load the directories:
 ```{r}
 dir        <- list()
 dir$root   <- dirname(getwd())
-dir$data   <- paste0(dirname(getwd()), "/data/")
+dir$data   <- paste0(dirname(getwd()), "/Data/")
 dir$fig    <- paste0(dirname(getwd()), "/figures/")
-dir$tab    <- paste0(dirname(getwd()), "/tables/")
+dir$tab    <- paste0(dirname(getwd()), "/Tables/")
 ```
 
-# Load data
 
-## First Specification
+# First Analysis 
 
-Load the injection data of electricity into the grid:
+Arrange the injection data to use it in the Gurobi optimization problem.
+
+The data is of electricity injected into the grid is at household level at monthly level
+First, I add all the microgenerators - thus, I know the total of electricity inyected in a certain month
+
+Now I have to transform this data from monthly to hourly.
+
+Use the injection data of electricity into the grid:
 
 ```{r}
 load(paste0(dir$data,
-            "Gurobi/extrac_data.RData"))
+            "Gurobi/inyection_data.RData"))
 ```
-
-```{r}
-injections <- final_MG %>% 
-  filter(month_plot>-1)
-
-injections %>% summarize(mean_iny=mean(ener_iny, na.rm=TRUE),
-                         sd_iny=sd(ener_iny, na.rm=TRUE), 
-                         min_iny=min(ener_iny, na.rm=TRUE), 
-                         max_iny=max(ener_iny, na.rm=TRUE))
-```
-
 
 Eliminate some variables:
 ```{r}
-final_inyection <- injections %>% 
-  dplyr::select(c(1:17)) %>% 
-  dplyr::select(-c(14:15))
-
-final_inyection <- final_inyection %>% 
-  mutate(inj_data = 
-           !is.na(ener_iny)) %>%
+#which days are the electricity injected to the grid bigger than zero: From November 2018 to August 2022
+final_inyection <- 
+  iny_res %>% 
+  filter(ener_iny > 0) %>%
   group_by(year, month, day) %>%  
-  summarize(ener_iny=
-              sum(ener_iny, 
-                         na.rm=TRUE), 
-            n_firms = sum(inj_data, 
-                          na.rm = T)) 
+  summarize(ener_iny=sum(ener_iny, 
+                         na.rm=TRUE))  %>% 
+  ungroup()
 # sum all the microgenerators that are injecting in a specific month
 
-#which days are the electricity injected to the grid bigger than zero: From November 2018 to August 2022
-#only keeps those days
-final_inyection <- 
-  final_inyection %>% 
-  filter(ener_iny >0)
-
 #convert the data to numeric
-final_inyection$year <- 
-  as.numeric(final_inyection$year)
-
-final_inyection$month <- 
-  as.numeric(final_inyection$month)
-
-final_inyection$day <- 
-  as.numeric(final_inyection$day)
+final_inyection <- 
+  final_inyection %>%
+  mutate(across(c('year', 'month', 'day'), 
+                as.numeric))
 ```
+
+ 
+
+Do the same bur instead of assuming a uniformly distribution, assume a normal one:
+
+Arrange the injection data to use it in the Gurobi optimization problem.
+The data is of electricity injected into the grid is at household level at monthly level
+First, I add all the microgenerators - thus, I know the total of electricity inyected in a certain month
 
 Keep the first row: add it more days and hours
 
-### 2018
-
+## 2018
 1) First row is November - 2018 
 ```{r}
 nov_2018 <- final_inyection[1,]
 
-nov_2018 <- nov_2018 %>% 
-  mutate(day=1, hour=0) #create the variable day
+nov_2018 <- nov_2018 %>% mutate(day=1, hour=0) #create the variable day
+nov_2018 <- nov_2018[rep(seq_len(nrow(nov_2018)), each = 30), ] #multiplies each row 30 times
+nov_2018 <- nov_2018 %>% group_by(year, month, day) %>% mutate(day=1:30) # add days from 1 to 30
 
-nov_2018 <- 
-  nov_2018[rep(seq_len(nrow(nov_2018)), each = 30), ] #multiplies each row 30 times
-
-nov_2018 <- nov_2018 %>% 
-  group_by(year, month, day) %>% 
-  mutate(day=1:30) # add days from 1 to 30
-
-nov_2018 <- 
-  nov_2018[rep(seq_len(nrow(nov_2018)), each = 24), ] #For each day, add 24 hours
-
-nov_2018 <- nov_2018 %>% 
-  group_by(year, month, day) %>% 
-  mutate(hour=0:23) # to each day, add 0 to 23 hours
+nov_2018 <- nov_2018[rep(seq_len(nrow(nov_2018)), each = 24), ] #For each day, add 24 hours
+nov_2018 <- nov_2018 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
 
 #If, the energy inyected is positive, then between 18 pm until 7 am is equal zero, and between 8 am to 17 pm is the electricity inyected/300. 
 #Why 23. The first 23, is to find the electricity inyected by day (eliminating those days which the thermal is equal zero)
-nov_2018 <- nov_2018 %>% 
-  mutate(elec_inyected =  ener_iny/(30-7))
+nov_2018 <- nov_2018 %>% mutate(elec_inyected =  ener_iny/(30-7))
 
-nov_2018 <- nov_2018 %>% 
-  mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+nov_2018 <- nov_2018 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
 ```
 
 2) December - 2018
@@ -152,7 +121,7 @@ rm(nov_2018, dec_2018)
 ```
 
 
-### 2019
+## 2019
 
 3) January - 2019
 ```{r}
@@ -353,7 +322,7 @@ elec_inyection_2019 <- rbind(jan_2019, feb_2019, mar_2019, apr_2019, may_2019, j
 rm(jan_2019, feb_2019, mar_2019, apr_2019, may_2019, june_2019, july_2019, aug_2019, sep_2019, oct_2019, nov_2019, dec_2019)
 ```
 
-### 2020
+## 2020
 
 15) January - 2020 
 ```{r}
@@ -553,7 +522,7 @@ elec_inyection_2020 <- rbind(jan_2020, feb_2020, mar_2020, apr_2020, may_2020, j
 rm(jan_2020, feb_2020, mar_2020, apr_2020, may_2020, june_2020, july_2020, aug_2020, sep_2020, oct_2020, nov_2020, dec_2020)
 ```
 
-#### 2021
+## 2021
 27) January - 2021 
 ```{r}
 jan_2021 <- final_inyection[27,]
@@ -752,7 +721,7 @@ elec_inyection_2021 <- rbind(jan_2021, feb_2021, mar_2021, apr_2021, may_2021, j
 rm(jan_2021, feb_2021, mar_2021, apr_2021, may_2021, june_2021, july_2021, aug_2021, sep_2021, oct_2021, nov_2021, dec_2021)
 ```
 
-### 2022
+## 2022
 39) January - 2022
 ```{r}
 jan_2022 <- final_inyection[39,]
@@ -830,7 +799,7 @@ may_2022 <- may_2022 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to e
 
 may_2022 <- may_2022 %>% mutate(elec_inyected =  ener_iny/(31-11))
 
-may_2022 <- may_2022 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity inyected from KWh to MWh
+may_2022 <- may_2022 %>% mutate(elec_inyected= elec_inyected/1000) #change from the electricity injected from KWh to MWh
 ```
 
 44) June 2022 
@@ -854,7 +823,9 @@ june_2022 <- june_2022 %>% mutate(elec_inyected= elec_inyected/1000) #change the
 ```{r}
 july_2022 <- final_inyection[45,]
 
-july_2022 <- july_2022 %>% mutate(day=1, hour=0) #create the variable day
+july_2022 <- july_2022 %>% 
+  mutate(day=1, hour=0) #create the variable day
+
 july_2022 <- july_2022[rep(seq_len(nrow(july_2022)), each = 31), ] #multiplies each row 30 times
 july_2022 <- july_2022 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
 
@@ -887,47 +858,26 @@ elec_inyection_2022 <- rbind(jan_2022, feb_2022, mar_2022, apr_2022, may_2022, j
 rm(jan_2022, feb_2022, mar_2022, apr_2022, may_2022, june_2022, july_2022, aug_2022)
 ```
 
-append them and save it
+## Append
+Append them and save it
+
 ```{r}
 final_elec_inyected <- rbind(elec_inyection_2018, elec_inyection_2019, elec_inyection_2020, elec_inyection_2021, elec_inyection_2022)
 
-save(final_elec_inyected, 
-     file= paste0(dir$data, "Gurobi/final_elec_inyected_normal.RData"))
+save(final_elec_inyected, file= 
+       paste0(dir$data,"Gurobi/final_elec_inyected_normal.RData"))
 ```
 
 
-## Second analysis
+#Third analysis:
+
+This is to do the graph of microgeneration production 
 
 Use the injection data of electricity into the grid:
-1) transform the data from monthly to hourly, and assume the injected data is uniformly distributed from 8 am to 5 pm
-```{r}
-load(paste0(dir$data, 
-     "Gurobi/extrac_data.RData"))
-```
-
-Eliminate some variables:
-```{r}
-final_inyection <- 
-  final_MG %>% dplyr::select(c(1:17)) %>% dplyr::select(-c(14:15))
-final_inyection <- 
-  final_inyection %>% 
-  group_by(year, month, day) %>%  
-  summarize(ener_iny=sum(ener_iny, na.rm=TRUE)) # summ all the microgenerators that are inyecting in a specific month
-
-#which days are the electricity injected to the grid bigger than zero: From November 2018 to August 2022
-#only keeps those days
-final_inyection <- final_inyection %>% filter(ener_iny >0)
-
-#convert the data to numeric
-final_inyection$year <- as.numeric(final_inyection$year)
-final_inyection$month <- as.numeric(final_inyection$month)
-final_inyection$day <- as.numeric(final_inyection$day)
-```
-
+1) transform the data from monthly to hourly, and assume the inyected data is uniformy distributed from 8 am to 5 pm
 Keep the first row: add it more days and hours
 
-### 2018
-
+#2018#
 1) First row is November - 2018 
 ```{r}
 nov_2018 <- final_inyection[1,]
@@ -969,8 +919,8 @@ rm(nov_2018, dec_2018)
 ```
 
 
-### 2019
 
+#2019#
 3) January - 2019
 ```{r}
 jan_2019 <- final_inyection[3,]
@@ -1122,7 +1072,8 @@ oct_2019 <- final_inyection[12,]
 
 oct_2019 <- oct_2019 %>% mutate(day=1, hour=0) #create the variable day
 oct_2019 <- oct_2019[rep(seq_len(nrow(oct_2019)), each = 31), ] #multiplies each row 30 times
-oct_2019 <- oct_2019 %>% group_by(year, month, day) %>% mutate(day=1:31) # add days from 1 to 30
+oct_2019 <- oct_2019 %>% group_by(year, month, day) %>% 
+  mutate(day=1:31) # add days from 1 to 30
 
 oct_2019 <- oct_2019[rep(seq_len(nrow(oct_2019)), each = 24), ] #For each day, add 24 hours
 oct_2019 <- oct_2019 %>% group_by(year, month, day) %>% mutate(hour=0:23) # to each day, add 0 to 23 hours
@@ -1170,7 +1121,7 @@ elec_inyection_2019 <- rbind(jan_2019, feb_2019, mar_2019, apr_2019, may_2019, j
 rm(jan_2019, feb_2019, mar_2019, apr_2019, may_2019, june_2019, july_2019, aug_2019, sep_2019, oct_2019, nov_2019, dec_2019)
 ```
 
-### 2020
+#2020#
 15) January - 2020 
 ```{r}
 jan_2020 <- final_inyection[15,]
@@ -1369,7 +1320,7 @@ elec_inyection_2020 <- rbind(jan_2020, feb_2020, mar_2020, apr_2020, may_2020, j
 rm(jan_2020, feb_2020, mar_2020, apr_2020, may_2020, june_2020, july_2020, aug_2020, sep_2020, oct_2020, nov_2020, dec_2020)
 ```
 
-### 2021
+#2021#
 27) January - 2021 
 ```{r}
 jan_2021 <- final_inyection[27,]
@@ -1568,8 +1519,7 @@ elec_inyection_2021 <- rbind(jan_2021, feb_2021, mar_2021, apr_2021, may_2021, j
 rm(jan_2021, feb_2021, mar_2021, apr_2021, may_2021, june_2021, july_2021, aug_2021, sep_2021, oct_2021, nov_2021, dec_2021)
 ```
 
-### 2022
-
+#2022#
 39) January - 2022
 ```{r}
 jan_2022 <- final_inyection[39,]
@@ -1704,11 +1654,9 @@ elec_inyection_2022 <- rbind(jan_2022, feb_2022, mar_2022, apr_2022, may_2022, j
 rm(jan_2022, feb_2022, mar_2022, apr_2022, may_2022, june_2022, july_2022, aug_2022)
 ```
 
-Append them and save it
+append them and save it
 ```{r}
-final_elec_inyected <- 
-  rbind(elec_inyection_2018, elec_inyection_2019, elec_inyection_2020, elec_inyection_2021, elec_inyection_2022)
+final_elec_inyected <- rbind(elec_inyection_2018, elec_inyection_2019, elec_inyection_2020, elec_inyection_2021, elec_inyection_2022)
 
-save(final_elec_inyected, 
-     file= paste0(dir$data, "Gurobi/final_elec_inyected_graph.RData"))
+save(final_elec_inyected, file= "C:/Users/natal/OneDrive/Documents/Net_metering_UY/Gurobi/final_elec_inyected_graph.RData")
 ```

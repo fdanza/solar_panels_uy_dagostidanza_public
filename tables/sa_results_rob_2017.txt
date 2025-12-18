@@ -1,0 +1,27 @@
+
+\begingroup
+\centering
+\begin{tabular}{lc}
+   \tabularnewline \midrule \midrule
+   Dependent Variable:           & Extraction (kWh)\\  
+   Model:                        & (1)\\  
+   \midrule
+   \emph{Variables}\\
+   Treatment                     & -1,546.0$^{***}$\\   
+                                 & (284.4)\\   
+   Treatment $\times$ Post 2017  & 78.04\\   
+                                 & (359.2)\\   
+   \midrule
+   \emph{Fixed-effects}\\
+   ID                            & Yes\\  
+   Month                         & Yes\\  
+   \midrule
+   \emph{Fit statistics}\\
+   Observations                  & 17,409\\  
+   R$^2$                         & 0.86611\\  
+   Within R$^2$                  & 0.01395\\  
+   \midrule \midrule
+\end{tabular}
+\par\endgroup
+
+

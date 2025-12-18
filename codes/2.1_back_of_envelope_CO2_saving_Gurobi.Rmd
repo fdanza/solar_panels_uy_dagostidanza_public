@@ -6,7 +6,7 @@ authors:  "Natalia D'Agosti & Facundo Danza"
 
 # Load the packages
 
-First, we load the necessary pacakges:
+First, we load the necessary packages:
 ```{r}
 rm(list=ls())
 gc()
@@ -68,7 +68,7 @@ final_2022 <- final_2022 %>%
 final_production <- 
   rbind(final_energy, final_2021, final_2022) 
 
-rm(final_energy, final_2021, final_2022) #Drop the dataframes that we dont need anymore
+rm(final_energy, final_2021, final_2022) #Drop the dataframes that we don't need anymore
 ```
 
 We add the electricity injected data of electricity into the grid.
@@ -228,7 +228,8 @@ final_gurobi <-
 #Merge the electricity injected to the grid with the production of sources
 
 extraction_gurobi = 
-  read_csv(paste0(dir$data,"constructed_data/n_of_mg.csv" ), 
+  read_csv(paste0(dir$data,
+                  "constructed_data/n_of_mg.csv" ), 
            col_types = cols())
 
 final_gurobi = 
@@ -341,7 +342,8 @@ total_co2_reduction = back_of_envolpe_co2 %>%
                   elect_inj_hourly_a, 
                   0)) %>%
   group_by(month, year) %>%
-  summarise(total_co2_reduction = sum(max_elect_inj_hourly*perc_thermal))
+  summarise(total_co2_reduction = 
+              sum(max_elect_inj_hourly*perc_thermal))
 
 # scales::comma(total_co2_reduction$total_co2_reduction)
 ```

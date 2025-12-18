@@ -1,0 +1,107 @@
+## Regressions
+
+
+```{r}
+CO2_3 <- feols(thermal ~  perc_micro + wind + solar + demand + total_exports | 
+                 year + month, 
+               data=final_gurobi2)
+
+reg_list_CO2 = 
+  list(CO2_3)
+```
+
+```{r}
+# Define your data and model
+data <- final_gurobi2
+
+# Define a function to estimate the model and extract coefficients
+boot_feols <- function(data, indices) {
+  d <- data[indices, ]  # Resample the data with replacement
+  CO2_3 <- feols(hydro ~ perc_micro + solar + wind + demand + total_exports | 
+                   hour*month + month*year, cluster = c('month', 'year'), 
+                 data = d)
+  return(coef(CO2_3))  # Return the coefficients
+}
+
+# Perform the bootstrap
+set.seed(123)  # For reproducibility
+boot_results <- boot(data = data, statistic = boot_feols, R = 100)  # R is the number of bootstrap samples
+
+# Display the bootstrap results
+print(boot_results)
+
+# Compute the standard errors
+bootstrap_se <- apply(boot_results$t, 2, sd)
+
+# Print the bootstrap standard errors
+print(bootstrap_se)
+
+# Obtain summary statistics like confidence intervals for the coefficients
+conf_intervals <- apply(boot_results$t, 2, function(x) quantile(x, c(0.025, 0.975)))
+
+# Print the confidence intervals
+print(conf_intervals)
+```
+
+
+```{r}
+CO2_3 <- feols(thermal ~  perc_micro + wind + demand + total_exports | 
+                 hour*month + month*year, cluster = c('month', 'year'), 
+               data=final_gurobi2)
+
+reg_list_CO2 = 
+  list(CO2_3)
+
+CO2_3b <- feols(thermal ~  perc_micro + wind + demand | 
+                  hour*month + month*year, cluster = c('month', 'year'), 
+                data=final_gurobi2)
+
+reg_list_CO2 = 
+ c(reg_list_CO2, list(CO2_3b))
+
+CO2_5 <- feols(hydro ~  perc_micro + wind + total_exports + demand | 
+                 hour*month + month*year, cluster = c('month', 'year'), 
+               data=final_gurobi2)
+
+reg_list_CO2 = 
+ c(reg_list_CO2, list(CO2_5))
+
+CO2_5b <- feols(hydro ~  perc_micro + wind + demand | 
+                 hour*month + month*year, cluster = c('month', 'year'), 
+               data=final_gurobi2)
+
+reg_list_CO2 = 
+ c(reg_list_CO2, list(CO2_5b))
+```
+
+```{r}
+setFixest_dict(c(thermal    = "Thermal Production (MWh)",
+                 hydro      = "Hydro Production (MWh)",
+                 perc_micro = "Microproduction (MWh)",
+                 wind       = "Wind Production (MWh)",
+                 demand     = "Consumption (MWh)",
+                 total_exports = "Exports (MWh)",
+                 dto   = "State",
+                 month = "Month",
+                 hour  = "Hour",
+                 year = "Year"))
+
+etable(reg_list_CO2,
+         file = paste0(dir$tab,
+                       "results_CO2.txt"),
+       replace = TRUE)
+
+etable(reg_list_CO2)
+```
+
+
+
+```{r}
+long_term_h0 <- final_gurobi2 %>% 
+  filter(hour=="13")
+
+CO2_h0 <- feols(thermal ~  perc_micro + wind + 
+                  demand + total_exports| month, 
+                cluster = c('month', 'year'), data=long_term_h0)
+summary(CO2_h0)
+```

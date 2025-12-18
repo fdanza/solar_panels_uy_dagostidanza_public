@@ -47,7 +47,7 @@ MG_data <-
 ```{r}
 names(MG_data) <- 
   c("ID", 
-    "capacity_mg", 
+    "capacity_w", 
     "state", 
     "tariff", 
     "installation_date", 
@@ -65,6 +65,21 @@ MG_data =
 MG_data$inst_month_yr <- format(
   as.Date(MG_data$inst_date), "%Y-%m")
 ```
+
+In our paper, we keep data until 2022; we thus exclude the rest of the sample:
+```{r}
+# we want to study capacity for the years in which we have better data
+MG_data = 
+  MG_data %>% 
+  mutate(year = 
+           year(installation_date), 
+         month = 
+           month(installation_date))
+
+MG_data = 
+  MG_data
+```
+
 
 ```{r}
 x_label = "2010-01"
@@ -92,6 +107,53 @@ plot_new_micro2
 ggsave(paste0(dir$fig,"plot_new_micro3.png"), 
               width = 7, height = 4.5)
 ```
+
+## Evolution of capacity
+
+```{r}
+x_label = "2010-01"
+
+for (i in seq(2012,2024,2)) {
+  x_label = c(x_label, paste0(i,"-01"))
+}
+
+plot_new_micro2 <- MG_data %>%
+  filter(type == "NEGOCIO") %>%
+  group_by(inst_month_yr) %>% 
+  summarise(avg_capacity = 
+              mean(capacity_hired, na.rm = T)) %>%
+  ggplot(aes(x=inst_month_yr, 
+             y=avg_capacity), size=2) +
+  geom_point(size=2, 
+           color="darkgray") +
+  theme(text = element_text(size = 15)) + 
+  labs(y = "Solar Panel Capacity (kW)",
+       x = "Date") + 
+  scale_x_discrete(breaks = x_label) +
+  theme(legend.key.size = unit(1, 'cm'))
+
+plot_new_micro2
+```
+
+```{r}
+ggsave(paste0(dir$fig,"plot_micro_capacity.png"), 
+              width = 7, height = 4.5)
+```
+
+### Regression analysis
+
+```{r}
+reg_capacity <- feols(
+  I(capacity_hired) ~ I(year-2011),
+  cluster = "year",
+  data = MG_data %>%
+    filter(type == "NEGOCIO" & 
+             !is.na(year))
+)
+
+etable(reg_capacity)
+```
+
 
 ## Tariff of each business
 ```{r}

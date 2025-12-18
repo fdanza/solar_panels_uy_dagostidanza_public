@@ -775,7 +775,8 @@ final_sa <- final_sa %>%
   mutate(month_plot= ifelse(month_plot > 0, month_plot -1, month_plot)) #Change the period 1 to zero, two to 1.. etc:
 
 final_sa <- final_sa %>%  
-  separate(date, c("year", "month", "day"), sep="-", remove=FALSE)
+  separate(date, c("year", "month", "day"), 
+           sep="-", remove=FALSE)
 ```
 
 ## Electricity Extraction
@@ -783,11 +784,13 @@ final_sa <- final_sa %>%
 Then, we run the regression:
 ```{r}
 sa_ex <- feols(ext ~ sunab(date_num, month_plot)| ID_34 +  month,
-                    data = final_sa, cluster = "dto")
+                    data = final_sa, 
+               cluster = "ID_34")
 
 summary(sa_ex,agg = 
           "ATT")
 ```
+
 ```{r}
 reg_list_sa_all = 
  list(summary(sa_ex,agg = "ATT"))
@@ -822,12 +825,14 @@ plot_ext1 <-
 
 ```{r}
 sa_in <- feols(ener_iny ~ sunab(date_num, month_plot)| ID_34 +  month,
-                    data = final_sa, cluster = "dto")
+                    data = final_sa, 
+               cluster = "ID_34")
 ```
 
 ```{r}
 reg_list_sa_all = 
-  c(reg_list_sa_all, list(summary(sa_in,agg = "ATT")))
+  c(reg_list_sa_all, 
+    list(summary(sa_in,agg = "ATT")))
 ```
 
 ```{r}
@@ -872,8 +877,9 @@ rm(final_MG_count)
 ### Net Effect
 
 ```{r}
-sa_ne <- feols((ext - ener_iny) ~ sunab(date_num, month_plot)| ID_34 +  month,
-                    data = final_sa, cluster = "dto")
+sa_ne <- feols((ext - ener_iny) ~ 
+                 sunab(date_num, month_plot)| ID_34 +  month,
+                    data = final_sa, cluster = "ID_34")
 ```
 
 ```{r}
@@ -934,6 +940,334 @@ writeLines(etable_text_cleaned, etable_path)
 
 # Robutness
 
+## Narrow Windows
+
+### 6 Months
+
+First, we clean the data
+```{r}
+final_sa_6 <- final_sa %>% 
+  filter(month_plot>-13) %>%
+  filter(month_plot> -7 & 
+           month_plot < 7)
+```
+
+
+```{r}
+final_sa_6$date <- 
+  as.Date(final_sa_6$date)
+
+final_sa_6$true_date_install <- 
+  as.Date(final_sa_6$true_date_install)
+
+identical(class(final_sa_6$date), 
+          class(final_sa_6$true_date_install))
+
+final_sa_6 <- final_sa_6 %>% 
+  mutate(date_num=as.numeric(true_date_install))
+
+#final_sa_6 <- final_sa_6 %>% mutate (cohort = 1)
+
+final_sa_6 <- final_sa_6 %>% 
+  mutate(month_plot= ifelse(month_plot > 0, month_plot -1, month_plot)) #Change the period 1 to zero, two to 1.. etc:
+
+final_sa_6 <- final_sa_6 %>%  
+  separate(date, c("year", "month", "day"), 
+           sep="-", remove=FALSE)
+```
+
+#### Electricity Extraction
+
+Then, we run the regression:
+```{r}
+sa_ex <- feols(ext ~ sunab(date_num, month_plot)| ID_34 +  month,
+               data = final_sa_6, 
+               cluster = "ID_34")
+
+summary(sa_ex,agg = 
+          "ATT")
+```
+
+```{r}
+reg_list_sa_all = 
+  list(summary(sa_ex,agg = "ATT"))
+```
+
+
+```{r}
+setFixest_dict(c(ext = "Electricity Extraction (kWh)",
+                 ener_iny   = "Electricity Injection (kWh)",
+                 "ext-ener_iny"  = 
+                   "Electricity Extraction minus Injection (kWh)",
+                 ATT  = "Solar Panel Installation", 
+                 ID_34 = "ID",
+                 dto   = "State",
+                 month = "Month", 
+                 year = "Year", 
+                 month_plot  = 
+                   "Month of Treatment"))
+
+plot_ext1 <- 
+  fixest::coefplot(sa_ex, lab.fit="simple")
+```
+
+
+```{r}
+# ggsave(paste0(dir$fig,"plot_rob_6.png"),
+#        width = 7, height = 4.5)
+```
+
+
+#### Electricity Injection
+
+```{r}
+sa_in <- feols(ener_iny ~ sunab(date_num, month_plot)| ID_34 +  month,
+               data = final_sa_6, 
+               cluster = "ID_34")
+```
+
+```{r}
+reg_list_sa_all = 
+  c(reg_list_sa_all, 
+    list(summary(sa_in,agg = "ATT")))
+```
+
+```{r}
+plot_inj1 <- 
+  fixest::coefplot(sa_in, lab.fit="simple")
+```
+
+```{r}
+# ggsave(paste0(dir$fig,"plot_inj1.png"), 
+#        width = 7, height = 4.5)
+```
+
+#### Net Effect
+
+```{r}
+sa_ne <- feols((ext - ener_iny) ~ 
+                 sunab(date_num, month_plot)| ID_34 +  month,
+               data = final_sa_6, cluster = "ID_34")
+```
+
+```{r}
+reg_list_sa_all = 
+  c(reg_list_sa_all, 
+    list(summary(sa_ne,agg = "ATT")))
+```
+
+```{r}
+plot_net1 <- 
+  fixest::coefplot(sa_ne, lab.fit="simple")
+```
+```{r}
+# ggsave(paste0(dir$fig,"plot_net1.png"), 
+#        width = 7, height = 4.5)
+```
+
+
+```{r}
+setFixest_dict(c(ext = "Extraction (kWh)",
+                 ener_iny   = "Injection (kWh)",
+                 "ext-ener_iny"  = "Net Effect (kWh)",
+                 ATT  = "Solar Panel Installation", 
+                 ID_34 = "ID",
+                 dto   = "State",
+                 month = "Month", 
+                 year = "Year", 
+                 month_plot  = 
+                   "Month of Treatment"), 
+               reset = TRUE)
+
+etable(reg_list_sa_all,
+       file = paste0(dir$tab,
+                     "sa_6_results.txt"),
+       replace = TRUE)
+
+etable(reg_list_sa_all)
+```
+
+We clean up the table a bit more, as we add this information in the notes of the table:
+```{r}
+# Load the table into R as text
+etable_path <- 
+  paste0(dir$tab, "sa_6_results.txt")
+
+etable_text <- 
+  readLines(etable_path)
+
+# Remove the 3rd and 4th to last lines
+etable_text_cleaned <- 
+  etable_text[-c((length(etable_text) - 5), 
+                 (length(etable_text) - 4))]
+
+# Write the cleaned table back to the same file or a new file
+writeLines(etable_text_cleaned, etable_path)
+```
+
+### 3 months
+
+First, we clean the data
+```{r}
+final_sa_3 <- final_sa %>% 
+  filter(month_plot>-13) %>%
+  filter(month_plot> -4 & 
+           month_plot < 4)
+```
+
+
+```{r}
+final_sa_3$date <- 
+  as.Date(final_sa_3$date)
+
+final_sa_3$true_date_install <- 
+  as.Date(final_sa_3$true_date_install)
+
+identical(class(final_sa_3$date), 
+          class(final_sa_3$true_date_install))
+
+final_sa_3 <- final_sa_3 %>% 
+  mutate(date_num=as.numeric(true_date_install))
+
+#final_sa_3 <- final_sa_3 %>% mutate (cohort = 1)
+
+final_sa_3 <- final_sa_3 %>% 
+  mutate(month_plot= ifelse(month_plot > 0, month_plot -1, month_plot)) #Change the period 1 to zero, two to 1.. etc:
+
+final_sa_3 <- final_sa_3 %>%  
+  separate(date, c("year", "month", "day"), 
+           sep="-", remove=FALSE)
+```
+
+#### Electricity Extraction
+
+Then, we run the regression:
+```{r}
+sa_ex <- feols(ext ~ sunab(date_num, month_plot)| ID_34 +  month,
+               data = final_sa_3, 
+               cluster = "ID_34")
+
+summary(sa_ex,agg = 
+          "ATT")
+```
+
+```{r}
+reg_list_sa_all = 
+  list(summary(sa_ex,agg = "ATT"))
+```
+
+
+```{r}
+setFixest_dict(c(ext = "Electricity Extraction (kWh)",
+                 ener_iny   = "Electricity Injection (kWh)",
+                 "ext-ener_iny"  = 
+                   "Electricity Extraction minus Injection (kWh)",
+                 ATT  = "Solar Panel Installation", 
+                 ID_34 = "ID",
+                 dto   = "State",
+                 month = "Month", 
+                 year = "Year", 
+                 month_plot  = 
+                   "Month of Treatment"))
+
+plot_ext1 <- 
+  fixest::coefplot(sa_ex, lab.fit="simple")
+```
+
+```{r}
+# ggsave(paste0(dir$fig,"plot_rob_6.png"),
+#        width = 7, height = 4.5)
+```
+
+#### Electricity Injection
+
+```{r}
+sa_in <- feols(ener_iny ~ sunab(date_num, month_plot)| ID_34 +  month,
+               data = final_sa_3, 
+               cluster = "ID_34")
+```
+
+```{r}
+reg_list_sa_all = 
+  c(reg_list_sa_all, 
+    list(summary(sa_in,agg = "ATT")))
+```
+
+```{r}
+plot_inj1 <- 
+  fixest::coefplot(sa_in, lab.fit="simple")
+```
+
+```{r}
+# ggsave(paste0(dir$fig,"plot_inj1.png"), 
+#        width = 7, height = 4.5)
+```
+
+#### Net Effect
+
+```{r}
+sa_ne <- feols((ext - ener_iny) ~ 
+                 sunab(date_num, month_plot)| ID_34 +  month,
+               data = final_sa_3, cluster = "ID_34")
+```
+
+```{r}
+reg_list_sa_all = 
+  c(reg_list_sa_all, 
+    list(summary(sa_ne,agg = "ATT")))
+```
+
+```{r}
+plot_net1 <- 
+  fixest::coefplot(sa_ne, lab.fit="simple")
+```
+
+```{r}
+# ggsave(paste0(dir$fig,"plot_net1.png"), 
+#        width = 7, height = 4.5)
+```
+
+
+```{r}
+setFixest_dict(c(ext = "Extraction (kWh)",
+                 ener_iny   = "Injection (kWh)",
+                 "ext-ener_iny"  = "Net Effect (kWh)",
+                 ATT  = "Solar Panel Installation", 
+                 ID_34 = "ID",
+                 dto   = "State",
+                 month = "Month", 
+                 year = "Year", 
+                 month_plot  = 
+                   "Month of Treatment"), 
+               reset = TRUE)
+
+etable(reg_list_sa_all,
+       file = paste0(dir$tab,
+                     "sa_3_results.txt"),
+       replace = TRUE)
+
+etable(reg_list_sa_all)
+```
+
+We clean up the table a bit more, as we add this information in the notes of the table:
+```{r}
+# Load the table into R as text
+etable_path <- 
+  paste0(dir$tab, "sa_3_results.txt")
+
+etable_text <- 
+  readLines(etable_path)
+
+# Remove the 3rd and 4th to last lines
+etable_text_cleaned <- 
+  etable_text[-c((length(etable_text) - 5), 
+                 (length(etable_text) - 4))]
+
+# Write the cleaned table back to the same file or a new file
+writeLines(etable_text_cleaned, etable_path)
+```
+
+
 ## Event Study
 ```{r}
 final_MG <- final_MG %>%  
@@ -945,7 +1279,8 @@ final_MG <- final_MG %>%
 
 ```{r}
 # Agent + month fixed effects
-main_result <- feols(ext ~  treat  | ID_34 + month, cluster = "dto", 
+main_result <- feols(ext ~  treat  | ID_34 + month, 
+                     cluster = "ID_34", 
                      data=final_MG)
 reg_list_all = 
   list(main_result)
@@ -987,7 +1322,8 @@ for (i in 1:12) {
 
 
 ```{r}
-main_result_2 <- feols(ext ~  lead12 + lead11 + lead10 + lead9 + lead8 + lead7 + lead6 + lead5 + lead4 + lead3 + lead2 + lag1 + lag2 + lag3 + lag4 + lag5 + lag6 + lag7 + lag8 + lag9 + lag10 + lag11 + lag12 | ID_34 + month, cluster = "dto", data=final_MG)
+main_result_2 <- feols(ext ~  lead12 + lead11 + lead10 + lead9 + lead8 + lead7 + lead6 + lead5 + lead4 + lead3 + lead2 + lag1 + lag2 + lag3 + lag4 + lag5 + lag6 + lag7 + lag8 + lag9 + lag10 + lag11 + lag12 | ID_34 + month, 
+                       cluster = "ID_34", data=final_MG)
 ```
 
 
@@ -1013,14 +1349,16 @@ save(final_MG,
 ```{r}
 # Agent + month fixed effects
 main_iny <- 
-  feols(ener_iny ~  treat  | ID_34 + month, cluster = "dto", data=final_MG)
+  feols(ener_iny ~  treat  | ID_34 + month, 
+        cluster = "ID_34", data=final_MG)
 
 reg_list_all = 
  c(reg_list_all, list(main_iny))
 ```
 
 ```{r}
-main_iny_2 <- feols(ener_iny ~  lead12 + lead11 + lead10 + lead9 + lead8 + lead7 + lead6 + lead5 + lead4 + lead3 + lead2 + lag1 + lag2 + lag3 + lag4 + lag5 + lag6 + lag7 + lag8 + lag9 + lag10 + lag11 + lag12 | ID_34 + month, cluster = "dto", data=final_MG)
+main_iny_2 <- feols(ener_iny ~  lead12 + lead11 + lead10 + lead9 + lead8 + lead7 + lead6 + lead5 + lead4 + lead3 + lead2 + lag1 + lag2 + lag3 + lag4 + lag5 + lag6 + lag7 + lag8 + lag9 + lag10 + lag11 + lag12 | ID_34 + month, 
+                    cluster = "ID_34", data=final_MG)
 ```
 
 
@@ -1037,7 +1375,8 @@ We do the extraction - injection regression as one
 ```{r}
 # Agent + month fixed effects
 net_effect <- 
-  feols((ext - ener_iny) ~  treat  | ID_34 + month, cluster = "dto", data=final_MG)
+  feols((ext - ener_iny) ~  treat  | ID_34 + month, 
+        cluster = "ID_34", data=final_MG)
 
 reg_list_all = 
  c(reg_list_all, list(net_effect))
@@ -1064,7 +1403,8 @@ etable(reg_list_all)
 
 Net effect plot: with ID + month
 ```{r}
-neteffect_plot <- feols((ext - ener_iny) ~  lead12 + lead11 + lead10 + lead9 + lead8 + lead7 + lead6 + lead5 + lead4 + lead3 + lead2 + lag1 + lag2 + lag3 + lag4 + lag5 + lag6 + lag7 + lag8 + lag9 + lag10 + lag11 + lag12 | ID_34 + month, cluster = "dto", data=final_MG)
+neteffect_plot <- feols((ext - ener_iny) ~  lead12 + lead11 + lead10 + lead9 + lead8 + lead7 + lead6 + lead5 + lead4 + lead3 + lead2 + lag1 + lag2 + lag3 + lag4 + lag5 + lag6 + lag7 + lag8 + lag9 + lag10 + lag11 + lag12 | ID_34 + month, 
+                        cluster = "ID_34", data=final_MG)
 ```
 
 
@@ -1116,7 +1456,8 @@ final_twfe <- final_twfe %>%
   separate(date, c("year", "month", "day"), sep="-", remove=FALSE)
 
 twfe.est <- feols(ext ~ i(month_plot, cohort, ref = -1)| ID_34 + month,  
-                  data = final_twfe, cluster = "dto")
+                  data = final_twfe, 
+                  cluster = "ID_34")
 ```
 
 ```{r}
@@ -1130,7 +1471,8 @@ twfe_plot <-
 ```{r}
 twfe.est_iny <- 
   feols(ener_iny ~ i(month_plot, cohort, ref = -1)| ID_34 + month,
-                      data = final_twfe, cluster = "dto")
+                      data = final_twfe, 
+        cluster = "ID_34")
 ```
 
 
@@ -1144,7 +1486,8 @@ twfe_plot_iny <-
 ```{r}
 twfe.est_ne <- 
   feols((ext - ener_iny) ~ i(month_plot, cohort, ref = -1)| ID_34 + month,  
-                  data = final_twfe, cluster = "dto")
+                  data = final_twfe, 
+        cluster = "ID_34")
 
 twfe.output_ne <- 
   as.matrix(twfe.est_ne$coeftable)
@@ -1154,13 +1497,14 @@ twfe_plot_ne <-
 ```
 
 
-## Cluster the standard errors at firm level
+## Cluster the standard errors at state level
 
 
 ### Extraction
 ```{r}
 sa_ex_rob <- feols(ext ~ sunab(date_num, month_plot)| ID_34 +  month,
-                    data = final_sa, cluster = "ID_34")
+                    data = final_sa, 
+                   cluster = "dto")
 
 reg_list_sa_rob =
   list(summary(sa_ex_rob,agg = "ATT"))
@@ -1172,7 +1516,8 @@ reg_list_sa_rob =
 ### Injection
 ```{r}
 sa_in_rob <- feols(ener_iny ~ sunab(date_num, month_plot)| ID_34 +  month,
-                    data = final_sa, cluster = "ID_34")
+                    data = final_sa, 
+                   cluster = "dto")
 
 reg_list_sa_rob =
   c(reg_list_sa_rob, list(summary(sa_in_rob,agg = "ATT")))
@@ -1185,7 +1530,7 @@ reg_list_sa_rob =
 ```{r}
 sa_ne_rob <- 
   feols((ext - ener_iny) ~ sunab(date_num, month_plot)| ID_34 +  month,
-                    data = final_sa, cluster = "ID_34")
+                    data = final_sa, cluster = "dto")
 
 reg_list_sa_rob =
   c(reg_list_sa_rob, list(summary(sa_ne_rob,agg = "ATT")))
@@ -1262,10 +1607,11 @@ robust_1 <- final_sa %>%
 
 ```{r}
 sa_ex_r1 <- feols(ext ~ sunab(date_installation, month_plot)| ID_34 +  month,
-                    data = robust_1, cluster = "dto")
+                    data = robust_1, cluster = "ID_34")
 
 reg_list_sa_bd = 
-  list(summary(sa_ex_r1,agg = "ATT"))
+  list(summary(sa_ex_r1,
+               agg = "ATT"))
 
 # twfe_plot_sa_r1 <- 
 #   fixest::coefplot(sa_ex_r1)
@@ -1276,7 +1622,7 @@ reg_list_sa_bd =
 ```{r}
 sa_in_r1 <- feols(ener_iny ~ 
                     sunab(date_num, month_plot)| ID_34 +  month,
-                    data = robust_1, cluster = "dto")
+                    data = robust_1, cluster = "ID_34")
 
 reg_list_sa_bd = 
   c(reg_list_sa_bd,
@@ -1291,11 +1637,12 @@ reg_list_sa_bd =
 ```{r}
 sa_ne_r1 <- feols((ext - ener_iny) ~ 
                     sunab(date_num, month_plot)| ID_34 +  month,
-                    data = robust_1, cluster = "dto")
+                    data = robust_1, cluster = "ID_34")
 
 reg_list_sa_bd = 
   c(reg_list_sa_bd,
-    list(summary(sa_ne_r1,agg = "ATT")))
+    list(summary(sa_ne_r1,
+                 agg = "ATT")))
 
 # sa_plot_ne_r1 <- 
 #   fixest::coefplot(sa_ne_r1)
@@ -1355,7 +1702,7 @@ robust_2 <- final_sa %>%
 
 ```{r}
 sa_ex_r2 <- feols(ext ~ sunab(date_num, month_plot)| ID_34 +  month,
-                    data = robust_2, cluster = "dto")
+                    data = robust_2, cluster = "ID_34")
 
 reg_list_sa_tl =
     list(summary(sa_ex_r2,
@@ -1366,7 +1713,7 @@ reg_list_sa_tl =
 
 ```{r}
 sa_in_r2 <- feols(ener_iny ~ sunab(date_num, month_plot)| ID_34 +  month,
-                    data = robust_2, cluster = "dto")
+                    data = robust_2, cluster = "ID_34")
 
 reg_list_sa_tl =
     c(reg_list_sa_tl,
@@ -1378,7 +1725,7 @@ reg_list_sa_tl =
 ```{r}
 sa_ne_r2 <- feols((ext - ener_iny) ~ 
                     sunab(date_num, month_plot)| ID_34 +  month,
-                    data = robust_2, cluster = "dto")
+                    data = robust_2, cluster = "ID_34")
 
 reg_list_sa_tl =
     c(reg_list_sa_tl,
@@ -1443,7 +1790,7 @@ interact <- interact %>%
 ```{r}
 sa_ex_2017 <- 
   feols(ext ~ treat + bef_aft_treat | ID_34 +  month,
-                    data = interact, cluster = "dto")
+                    data = interact, cluster = "ID_34")
 
 reg_list_sa_2017 =
   list(sa_ex_2017)
@@ -1518,7 +1865,7 @@ for (y in 2012:2022) {
 ### Extraction
 ```{r}
 #ID + month
-all_years <- feols(ext  ~ treat_2012 + treat_2013 + treat_2014 + treat_2015 + treat_2016 + treat_2017 + treat_2018 + treat_2019 + treat_2020 + treat_2021 + treat_2022| ID_34 + month, cluster = "dto", data=interact_treat)
+all_years <- feols(ext  ~ treat_2012 + treat_2013 + treat_2014 + treat_2015 + treat_2016 + treat_2017 + treat_2018 + treat_2019 + treat_2020 + treat_2021 + treat_2022| ID_34 + month, cluster = "ID_34", data=interact_treat)
 ```
 
 
@@ -1552,7 +1899,7 @@ linearHypothesis(all_years, null_hypothesis_3)
 ### Net Effect
 
 ```{r}
-all_years_net <- feols((ext -ener_iny)  ~   treat_2012 + treat_2013 + treat_2014 + treat_2015 + treat_2016 + treat_2017 + treat_2018 + treat_2019 + treat_2020 + treat_2021 + treat_2022| ID_34 + month, cluster = "dto", data=interact_treat)
+all_years_net <- feols((ext -ener_iny)  ~   treat_2012 + treat_2013 + treat_2014 + treat_2015 + treat_2016 + treat_2017 + treat_2018 + treat_2019 + treat_2020 + treat_2021 + treat_2022| ID_34 + month, cluster = "ID_34", data=interact_treat)
 summary(all_years_net)
 
 plot_all_years <- 
@@ -1610,18 +1957,22 @@ save(final_co2,
 ```{r}
 rebound_data <- 
   read_excel(paste0(dir$data,"constructed_data/rebound_graph_data.xlsx"), 
-             sheet=2 ,range="A1:c13")
+             sheet=2 ,range="A1:C13")
 ```
 
 
 ```{r}
 rebound_graph <- 
   ggplot(data = 
-           rebound_data, aes(x=Months, y=lowerbound, color="4.5 hrs of peak sunlight")) +
-  geom_line(aes(y=upperbound, color="5 hours of peak sunlight"), size = 1) +    
+           rebound_data, aes(x=Months, y=lowerbound, 
+                             color="4.3 hrs of peak sunlight")) +
+  geom_line(aes(y=upperbound, 
+                color="4.5 hours of peak sunlight"), size = 1) +    
   geom_line(size = 1) + 
   theme(text = element_text(size = 15)) + 
-  scale_color_manual(name = "", values = c("4.5 hrs of peak sunlight" = "blue", "5 hours of peak sunlight" = "navy")) + 
+  scale_color_manual(name = "", 
+                     values = c("4.3 hrs of peak sunlight" = "blue", 
+                                "4.5 hours of peak sunlight" = "navy")) + 
   labs(y = "Consumption (KWh)", x = "Months after the solar panel installation") + 
   theme(legend.key.size = unit(1, 'cm'),legend.position = "bottom") +
   scale_x_continuous(breaks = seq(1, 12, 1)) +  

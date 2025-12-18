@@ -1,0 +1,1116 @@
+---
+title:   "Gurobi - Batteries' Exercise"
+authors: "Natalia D'Agosti & Facundo Danza" 
+---
+
+# Load the packages
+
+First, we load the necessary pacakges:
+```{r}
+rm(list=ls())
+gc()
+```
+
+Second, we load the packages
+```{r}
+# install.packages("pacman")
+pacman::p_load(tidyverse, lubridate, readxl, 
+               sandwich, arm, fixest, gapminder, car, 
+               gurobi, Matrix, boot)
+#library(margins)
+```
+
+Third, we set the plotting theme:
+```{r}
+theme_set(theme_bw())
+```
+
+Then, we load the directories:
+```{r}
+dir        <- list()
+dir$root   <- dirname(getwd())
+dir$data   <- paste0(dirname(getwd()), "/Data/")
+dir$fig    <- paste0(dirname(getwd()), "/figures/")
+dir$tab    <- paste0(dirname(getwd()), "/Tables/")
+```
+
+
+# Minimization Problem - Gurobi
+
+In this section, we do the minimization problem on emissions. We use Gurobi for the analysis.  
+
+## Clean Data
+
+First, we arrange the hydro, thermal, biomass, wind, solar, demand, imports and exports data
+```{r}
+final_energy <- 
+  read.csv(paste0(dir$data,"Gurobi/final_all.csv")) # this is till the year 2020
+
+final_energy <- final_energy %>% 
+  dplyr::select("year", "month", "day", "hour", "wind", "solar", "biomass", "thermal", "hydro", "demand", "total_exports", "total_imports") #eliminate the congestion variable that do not play a role
+```
+
+Then, we append the the year 2021 and 2022. This was done is the code "data/ADME_electricity_production\Notebook_1.Rmd"
+```{r}
+load(paste0(dir$data, 
+            "ADME_electricity_production/final_2021.RData"))
+
+final_2021 <- final_2021 %>% 
+  mutate (total_exports=-total_exports)
+
+load(paste0(dir$data, 
+            "ADME_electricity_production/final_2022.RData"))
+
+final_2022 <- final_2022 %>% 
+  mutate (total_exports=-total_exports)
+```
+
+And we append the datasets:
+```{r}
+final_production <- 
+  rbind(final_energy, final_2021, final_2022) 
+
+rm(final_energy, final_2021, final_2022) #Drop the dataframes that we dont need anymore
+```
+
+We add the electricity injected data of electricity into the grid. We define microgeneration as a proportion of the large solar production. 
+
+We have the total electricity production of the month for each hour (this was done is the R file: files/R_arrange_inyection_data_for_Gurobi/final_elec_inyected_normal)
+
+*Caution: the number is the same for every hour within a month, and is the total production, not the hourly production*
+```{r}
+load(paste0(dir$data,"Gurobi/final_elec_inyected_normal.RData"))
+```
+
+## CO2 Factor
+
+In this section, we calculate the CO2 factor per hour. 
+
+First, we add the CO2 emissions data. 
+
+*Caution: CO2 emissions is the total per month, and is the same number for all the hours of all the days*
+```{r}
+load(paste0(dir$data,"/Gurobi/final_co2_G.RData"))
+
+final_co2_G <- 
+  final_co2_G %>% 
+  dplyr::select(year, month, day, hour, everything()) #change the order of columns
+
+#merge it with the other variable:
+final_co2_G <- merge(final_co2_G, final_production, 
+                     by=c("year", "month", "day", "hour"))
+```
+
+We calculate the hourly emissions. We re-adjust for thermal production at the time:
+```{r}
+final_co2_G <- final_co2_G %>% 
+  group_by(year, month) %>% 
+  mutate(max_day = max(day), 
+         total_thermal_month = 
+           sum(thermal)) %>% 
+  ungroup() %>% 
+  mutate(co2_per_unit = 
+           desc_co2/total_thermal_month) %>%
+  group_by(year, month, day) %>% 
+  mutate(total_thermal_day = 
+           sum(thermal), 
+         total_thermal_day_square = 
+           sum(thermal^2)) %>%
+  ungroup() %>% 
+  mutate(ponderator = 
+           thermal/total_thermal_day,
+         scale_pond = 
+           total_thermal_day^2/total_thermal_day_square,
+         perc_thermal = 
+           ifelse(total_thermal_day == 0, 
+                  0,
+                  scale_pond*ponderator*co2_per_unit))
+```
+
+```{r}
+final_co2_G_check = 
+  final_co2_G %>%
+  filter(month == 11 & year == 2018) %>% 
+  summarise(co2_total_factor = 
+              sum(perc_thermal*thermal, na.rm = T), 
+            co2_total     = mean(desc_co2))
+```
+
+
+We add now the electricity injected into the grid:
+```{r}
+final_gurobi <- 
+  merge(final_elec_inyected, final_co2_G, 
+        by=c("year", "month", "day", "hour")) 
+#Merge the electricity injected to the grid with the production of sources
+
+rm(final_co2_G, final_production, 
+   final_elec_inyected) # eliminate the databases we do not need
+```
+
+
+## CO2 emissions - Back of the envolpe exercise
+
+We need to define the distribution within a hour of solar production. We assume that solar is produced in the same proportion as total solar been produce. 
+```{r}
+back_of_envolpe_co2 = 
+  final_gurobi %>%
+  group_by(month, year, day) %>%
+  mutate(total_solar = sum(solar)) %>% 
+  ungroup() %>% 
+  mutate(elect_inj_hourly = 
+           elec_inyected*solar/total_solar)
+```
+
+### Total CO2 emissions
+```{r}
+total_co2_emissions_statuo_quo = 
+  back_of_envolpe_co2 %>% 
+  group_by(month, year) %>%
+  summarise(total_co2_emissions = 
+              mean(desc_co2, na.rm = T)) %>% 
+  ungroup() %>% 
+  summarise(total_co2 = 
+              sum(total_co2_emissions, na.rm = T), 
+            mean_co2 = 
+              mean(total_co2_emissions, na.rm = T))
+
+print("")
+print(paste0("Total CO2 ", scales::comma(total_co2_emissions_statuo_quo$total_co2)))
+print(paste0("Average CO2 ", scales::comma(total_co2_emissions_statuo_quo$mean_co2)))
+```
+
+
+### Subsitution of Thermal Only
+
+For the first calculation, we assume it substitutes only thermal (when there is thermal production). 
+```{r}
+total_co2_reduction = back_of_envolpe_co2 %>% 
+  mutate(max_elect_inj_hourly = 
+           ifelse(elect_inj_hourly < thermal, 
+                  elect_inj_hourly, 
+                  thermal)) %>%
+  summarise(total_co2_reduction = sum(max_elect_inj_hourly*perc_thermal))
+
+scales::comma(total_co2_reduction$total_co2_reduction)
+```
+
+```{r}
+(total_co2_reduction$total_co2_reduction/total_co2_emissions_statuo_quo$total_co2)
+```
+
+
+### Subtitution of Thermal Proportion
+```{r}
+back_of_envolpe_co2 = 
+  back_of_envolpe_co2 %>% 
+  mutate(thermal_perc_total = thermal/(thermal + wind + 
+                                         solar + biomass + hydro))
+```
+
+```{r}
+total_co2_reduction = back_of_envolpe_co2 %>% 
+  summarise(total_co2_reduction =
+              sum(elect_inj_hourly*perc_thermal*thermal_perc_total))
+
+scales::comma(total_co2_reduction$total_co2_reduction)
+```
+
+```{r}
+(total_co2_reduction$total_co2_reduction/total_co2_emissions_statuo_quo$total_co2)
+```
+
+
+
+## Gurobi minimization
+
+We made a few minor changes now. In particular, we change the sign of exports and the name of electiricity injected:
+```{r}
+final_gurobi <- final_gurobi %>% 
+  mutate(total_exports = - total_exports) #change the negative exports to positive exports
+
+final_gurobi <- final_gurobi %>%
+  mutate(total_elec_iny=elec_inyected)  #generate the total electricity injected on a day
+```
+
+
+We now create the residual demand:
+ 
+a) Thermal + hydro + biomasss + wind + solar + Microgenerators + Imports = Demand + exports --> Thermal + Microgenerators = Demand + Exports - hydro - biomass - wind - solar - Imports (this is equal to the residual demand)
+ 
+In case the production exceeds the existing demand, we will say there is no residual demand left.
+
+CTM appears in the exports and the total production, so we need to adjust that:
+```{r}
+load(paste0(dir$data,
+            "Gurobi/CTM_Gurobi.RData"))
+
+# export is not part of the residual demand - we leave it as a variable to be adjust
+final_gurobi <- final_gurobi %>% 
+  mutate(r_d= demand + total_exports - total_imports - hydro - wind - solar - biomass) 
+
+final_gurobi <- 
+  final_gurobi[order(final_gurobi$year, final_gurobi$month, 
+                     final_gurobi$day,
+                     final_gurobi$hour),]
+
+final_gurobi2 <- merge(final_gurobi, final_data_CTM, 
+                       by=c("year", "month", "day", "hour"), 
+                       all.x=TRUE)
+
+final_gurobi2 <- final_gurobi2 %>% 
+  mutate(CTM = ifelse(is.na(CTM), 0, -CTM))
+
+# 2 CTM because is sum negatively. So 2 CTM to cancel out + make it positive
+final_gurobi2 <- final_gurobi2 %>% 
+  mutate(residual_demand = r_d + CTM)  # create the new correct residual demand
+                         
+final_gurobi2 <- final_gurobi2 %>% 
+  mutate(residual_demand= ifelse(
+    residual_demand <0, 0, residual_demand))
+
+final_gurobi2 %>% 
+  summarize(mean_rd=mean(residual_demand, na.rm=TRUE), 
+            sd_rd=sd(residual_demand, na.rm=TRUE), 
+            min_rd=min(residual_demand, na.rm=TRUE), 
+            max_rd=max(residual_demand, na.rm=TRUE))
+```
+
+We check when thermal is positive: only moment to substitute it out!
+```{r}
+final_gurobi2 <- final_gurobi2 %>% 
+  group_by(year, month, day) %>% 
+  mutate(mean_thermal = mean(thermal)) %>% 
+  ungroup()
+
+final_gurobi2_check <- final_gurobi2 %>% 
+  filter(mean_thermal>0)
+```
+
+We are eliminating the days which have no thermal production. Thus, when I distribute the injection of solar electricity it has to be with fewer days.
+```{r}
+#check <- final_gurobi_check %>% 
+# filter(year==2022, month==8) 
+#table(check$day)
+```
+
+From November 2018 to August 2022
+
+Arrange the dataset:
+50 is correct, they are 7 days in November 2018 that has thermal=0 (day= 4,10,13,14,16,21,24)
+```{r}
+year_round = 
+  2018 
+
+A_round <- 
+  data.frame("solution_mWh" = 
+               c(paste0("thermal_", 0:23),paste0("micro_gen_", 0:23)))
+
+A_round_solution = 
+      data.frame("solution_co2" = "kg") 
+
+final_gurobi_round = 
+  final_gurobi2 %>%
+  filter(year == year_round)
+
+months_in_round = 
+  unique(final_gurobi_round$month)
+
+min_month = 
+  min(months_in_round)
+
+max_month = 
+  max(months_in_round)
+
+for(i in min_month:max_month)
+{
+  
+  energy_G <- final_gurobi2 %>% 
+    filter(year==year_round, month==i)  
+  
+  for(j in 1:energy_G$max_day[1])
+  {
+    
+    energy_G <- final_gurobi2 %>% 
+      filter(year==year_round, month==i, day==j)
+    
+    #Now do the minimization problem:
+    model <- list()
+    
+    model$A <- matrix(c
+                      (1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                        0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                        0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  
+                        0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  
+                        0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  
+                        0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  
+                        0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                        0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                        0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  
+                        0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                        0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                        0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0, 
+                        0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0, 
+                        0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,
+                        0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,
+                        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,
+                        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,
+                        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,
+                        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,
+                        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,
+                        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0, 
+                        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,
+                        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,
+                        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+                        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1),  
+                      nrow=25, ncol=48, byrow=T)
+    
+    
+    model$obj   <- c(
+      energy_G$perc_thermal[1], energy_G$perc_thermal[2], energy_G$perc_thermal[3], energy_G$perc_thermal[4], energy_G$perc_thermal[5], energy_G$perc_thermal[6], energy_G$perc_thermal[7], energy_G$perc_thermal[8], energy_G$perc_thermal[9], energy_G$perc_thermal[10], energy_G$perc_thermal[11], energy_G$perc_thermal[12], energy_G$perc_thermal[13], energy_G$perc_thermal[14], energy_G$perc_thermal[15], energy_G$perc_thermal[16], energy_G$perc_thermal[17], energy_G$perc_thermal[18], energy_G$perc_thermal[19], energy_G$perc_thermal[20], energy_G$perc_thermal[21], energy_G$perc_thermal[22], energy_G$perc_thermal[23], energy_G$perc_thermal[24],            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+    
+    model$modelsense <- 
+      'min'
+    
+    model$rhs        <- c(energy_G$residual_demand[],
+                          energy_G$total_elec_iny[1]) #take the whole first column
+    
+    model$sense      <- 
+      c('>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=', '=')                                                                              
+    
+    result <- gurobi(model)
+    
+#    print('Solution:')
+    
+#    print(result$objval)
+    
+#    print(result$x)
+    
+    Aw = 
+      data.frame("G_result"=result$x)
+    
+    A_solution = 
+      data.frame("G_value"=result$objval)
+    
+    if(any(energy_G$mean_thermal > 0)) {
+      
+    names(Aw)[1] <- 
+        paste0(names(Aw)[1], year_round,"_",j,"_", i)
+      
+      A_round <- cbind(A_round,
+                    Aw)
+      
+    names(A_solution)[1] <- 
+      paste0(names(A_solution)[1], year_round,"_",j,"_",i)
+      
+    A_round_solution <- cbind(A_round_solution,
+                             A_solution)
+    }
+  }
+}
+
+final_x_solution = 
+  A_round 
+
+final_co2_solution = 
+  A_round_solution
+```
+
+
+```{r}
+for (year_round in 2019:2022) {
+  A_round <- 
+  data.frame("solution_mWh" = 
+               c(paste0("thermal_", 0:23),paste0("micro_gen_", 0:23)))
+
+A_round_solution = 
+      data.frame("solution_co2" = "kg") 
+
+final_gurobi_round = 
+  final_gurobi2 %>%
+  filter(year == year_round)
+
+months_in_round = 
+  unique(final_gurobi_round$month)
+
+min_month = 
+  min(months_in_round)
+
+max_month = 
+  max(months_in_round)
+
+for(i in min_month:max_month)
+{
+  
+  energy_G <- final_gurobi2 %>% 
+    filter(year==year_round, month==i)  
+  
+  for(j in 1:energy_G$max_day[1])
+  {
+    
+    energy_G <- final_gurobi2 %>% 
+      filter(year==year_round, month==i, day==j)
+    
+    #Now do the minimization problem:
+    model <- list()
+    
+    model$A <- matrix(c
+                      (1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                        0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                        0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  
+                        0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  
+                        0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  
+                        0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  
+                        0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                        0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                        0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  
+                        0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                        0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                        0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0, 
+                        0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0, 
+                        0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,
+                        0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,
+                        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,
+                        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,
+                        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,
+                        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,
+                        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,
+                        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0, 
+                        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,
+                        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,
+                        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+                        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1),  
+                      nrow=25, ncol=48, byrow=T)
+    
+    
+    model$obj   <- c(
+      energy_G$perc_thermal[1], energy_G$perc_thermal[2], energy_G$perc_thermal[3], energy_G$perc_thermal[4], energy_G$perc_thermal[5], energy_G$perc_thermal[6], energy_G$perc_thermal[7], energy_G$perc_thermal[8], energy_G$perc_thermal[9], energy_G$perc_thermal[10], energy_G$perc_thermal[11], energy_G$perc_thermal[12], energy_G$perc_thermal[13], energy_G$perc_thermal[14], energy_G$perc_thermal[15], energy_G$perc_thermal[16], energy_G$perc_thermal[17], energy_G$perc_thermal[18], energy_G$perc_thermal[19], energy_G$perc_thermal[20], energy_G$perc_thermal[21], energy_G$perc_thermal[22], energy_G$perc_thermal[23], energy_G$perc_thermal[24],            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+    
+    model$modelsense <- 
+      'min'
+    
+    model$rhs        <- c(energy_G$residual_demand[],
+                          energy_G$total_elec_iny[1]) #take the whole first column
+    
+    model$sense      <- 
+      c('>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=', '=')                                                                              
+    
+    result <- gurobi(model)
+    
+#    print('Solution:')
+    
+#    print(result$objval)
+    
+#    print(result$x)
+    
+    Aw = 
+      data.frame("G_result"=result$x)
+    
+    A_solution = 
+      data.frame("G_value"=result$objval)
+    
+    if(any(energy_G$mean_thermal > 0)) {
+      
+    names(Aw)[1] <- 
+        paste0(names(Aw)[1], year_round,"_",j,"_", i)
+      
+      A_round <- cbind(A_round,
+                    Aw)
+      
+    names(A_solution)[1] <- 
+      paste0(names(A_solution)[1], year_round,"_",j,"_",i)
+      
+    A_round_solution <- cbind(A_round_solution,
+                             A_solution)
+    }
+  }
+}
+
+final_x_solution = 
+  cbind(final_x_solution, 
+        A_round[, 2:ncol(A_round)]) 
+
+final_co2_solution = 
+  cbind(final_co2_solution, 
+        A_round_solution[, 2:ncol(A_round_solution)])
+}
+```
+
+```{r}
+final_co2_solution_long = 
+  final_co2_solution %>%
+  pivot_longer(starts_with("G_value"), 
+               names_to  = "date", 
+               values_to = "co2_kg", 
+               names_prefix = "G_value") %>%
+  mutate(co2_kg = as.numeric(co2_kg)) %>%
+  separate(date, c("year", "month", "day"), 
+           sep="_", remove=FALSE)
+
+total_co2_emissions_gurobi = 
+  final_co2_solution_long %>% 
+  summarise(total_co2 = 
+              sum(co2_kg, na.rm = T))
+
+(total_co2_emissions_gurobi$total_co2 - total_co2_emissions_statuo_quo$total_co2)/total_co2_emissions_statuo_quo$total_co2
+```
+
+
+### Plot
+
+```{r}
+final_x_solution_long = 
+  final_x_solution %>%
+    pivot_longer(starts_with("G_result"), 
+               names_to  = "date", 
+               values_to = "kWh", 
+               names_prefix = "G_result") %>%
+  mutate(kWh = as.numeric(kWh)) %>%
+  separate(date, c("year", "month", "day"), 
+           sep="_", remove=FALSE) 
+
+final_x_solution_long = 
+  final_x_solution_long %>% 
+  filter(solution_mWh %in% paste0("micro_gen_", 0:23)) %>% 
+  mutate(hour = as.numeric(substr(solution_mWh, 11, nchar(solution_mWh))))
+```
+
+```{r}
+plot_final_2 <- ggplot(data = final_x_solution_long %>% 
+                         filter(kWh != 0) %>%
+                         group_by(hour) %>%
+                         summarise(tot_days_final = n()) %>%
+                         mutate(hour = ifelse(hour == 0, 24, hour)), 
+                       aes(x=hour, y=tot_days_final)) +
+  geom_point(size=2) +
+  geom_vline(xintercept=8, color = "yellow", size=1) +
+  geom_vline(xintercept=16.5, color = "yellow", size=1) +
+  theme(text = element_text(size = 15)) +
+  labs(y = "Freq. Solutions" ,x = "Hour") +
+  theme(legend.key.size = unit(1, 'cm'))
+
+plot_final_2
+```
+
+```{r}
+ggsave(paste0(dir$fig,"plot_final.png"), 
+       width = 7, height = 4.5)
+```
+
+
+# Spot Prices
+
+Use the spot price instead:
+```{r}
+spot_price <- read_excel(paste0(dir$data,
+                                "spot_prices/spot_price_Gurobi.xls"))
+
+final_g_spot <- merge(final_gurobi2, 
+                      spot_price, by=c("year", "month", "day", "hour"))
+```
+
+
+```{r}
+year_round = 
+  2018 
+
+sp_round <- 
+  data.frame("solution_mWh" = 
+               c(paste0("thermal_", 0:23),paste0("micro_gen_", 0:23)))
+
+sp_round_solution = 
+  data.frame("solution_co2" = "kg") 
+
+energy_G_spot_round = 
+  final_g_spot %>%
+  filter(year == year_round)
+
+months_in_round = 
+  unique(energy_G_spot_round$month)
+
+min_month = 
+  min(months_in_round)
+
+max_month = 
+  max(months_in_round)
+
+for(i in min_month:max_month)
+{
+  
+  energy_G <- final_g_spot %>% 
+    filter(year==year_round, month==i)  
+  
+  
+  for(j in 1:energy_G$max_day[1])
+  {
+    
+    energy_G <- final_g_spot %>% 
+      filter(year==year_round, month==i, day==j)
+    
+  energy_G <-
+    energy_G[order(energy_G$hour),]
+    
+    #Now do the minimization problem:
+    model <- list()
+    
+    model$A <- matrix(c
+                      (1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                        0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                        0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  
+                        0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  
+                        0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  
+                        0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  
+                        0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                        0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                        0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  
+                        0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                        0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                        0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0, 
+                        0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0, 
+                        0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,
+                        0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,
+                        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,
+                        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,
+                        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,
+                        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,
+                        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,
+                        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0, 
+                        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,
+                        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,
+                        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+                        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1),  
+                      nrow=25, ncol=48, byrow=T)
+    
+    
+    model$obj   <- c(
+      energy_G$spot_price[1], energy_G$spot_price[2], energy_G$spot_price[3], energy_G$spot_price[4], energy_G$spot_price[5], energy_G$spot_price[6], energy_G$spot_price[7], energy_G$spot_price[8], energy_G$spot_price[9], energy_G$spot_price[10], energy_G$spot_price[11], energy_G$spot_price[12], energy_G$spot_price[13], energy_G$spot_price[14], energy_G$spot_price[15], energy_G$spot_price[16], energy_G$spot_price[17], energy_G$spot_price[18], energy_G$spot_price[19], energy_G$spot_price[20], energy_G$spot_price[21], energy_G$spot_price[22], energy_G$spot_price[23], energy_G$spot_price[24],            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+    
+    model$modelsense <- 
+      'min'
+    
+    model$rhs        <- c(energy_G$residual_demand[],
+                          energy_G$total_elec_iny[1]) #take the whole first column
+    
+    model$sense      <- 
+      c('>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=', '=')                                                                              
+    
+    result <- gurobi(model)
+    
+    #    print('Solution:')
+    
+    #    print(result$objval)
+    
+    #    print(result$x)
+    
+    Aw = 
+      data.frame("G_result"=result$x)
+    
+    sp_solution = 
+      data.frame("G_value"=result$objval)
+    
+    if(any(energy_G$mean_thermal > 0)) {
+      
+      names(Aw)[1] <- 
+        paste0(names(Aw)[1], year_round,"_",j,"_", i)
+      
+      sp_round <- cbind(sp_round,
+                        Aw)
+      
+      names(sp_solution)[1] <- 
+        paste0(names(sp_solution)[1], year_round,"_",j,"_",i)
+      
+      sp_round_solution <- cbind(sp_round_solution,
+                                 sp_solution)
+    }
+  }
+}
+
+final_x_solution = 
+  sp_round 
+
+final_co2_solution = 
+  sp_round_solution
+```
+
+```{r}
+# sp_solution = 
+#   final_x_solution %>%
+#   filter(solution_mWh %in% paste0("micro_gen_", 0:23)) %>% 
+#   mutate(hour = as.numeric(substr(solution_mWh, 11, nchar(solution_mWh))))
+```
+
+
+
+```{r, message=F}
+for (year_round in 2019:2022) {
+  sp_round <- 
+    data.frame("solution_mWh" = 
+                 c(paste0("thermal_", 0:23),paste0("micro_gen_", 0:23)))
+  
+  sp_round_solution = 
+    data.frame("solution_co2" = "kg") 
+  
+  energy_G_spot_round = 
+    final_g_spot %>%
+    filter(year == year_round)
+  
+  months_in_round = 
+    unique(energy_G_spot_round$month)
+  
+  min_month = 
+    min(months_in_round)
+  
+  max_month = 
+    max(months_in_round)
+  
+  for(i in min_month:max_month)
+  {
+    
+  energy_G <- final_g_spot %>% 
+    filter(year==year_round, month==i)  
+    
+    for(j in 1:energy_G$max_day[1])
+    {
+      
+      energy_G <- final_g_spot %>% 
+        filter(year==year_round, month==i, day==j)
+      
+    energy_G <-
+      energy_G[order(energy_G$hour),]
+      
+      #Now do the minimization problem:
+      model <- list()
+      
+      model$A <- matrix(c
+                        (1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                          0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                          0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  
+                          0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  
+                          0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  
+                          0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  
+                          0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                          0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                          0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  
+                          0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                          0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                          0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0, 
+                          0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0, 
+                          0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,
+                          0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,
+                          0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,
+                          0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,
+                          0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,
+                          0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,
+                          0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,
+                          0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0, 
+                          0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,
+                          0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,
+                          0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+                          0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1),  
+                        nrow=25, ncol=48, byrow=T)
+      
+      
+      model$obj   <- c(
+        energy_G$spot_price[1], energy_G$spot_price[2], energy_G$spot_price[3], energy_G$spot_price[4], energy_G$spot_price[5], energy_G$spot_price[6], energy_G$spot_price[7], energy_G$spot_price[8], energy_G$spot_price[9], energy_G$spot_price[10], energy_G$spot_price[11], energy_G$spot_price[12], energy_G$spot_price[13], energy_G$spot_price[14], energy_G$spot_price[15], energy_G$spot_price[16], energy_G$spot_price[17], energy_G$spot_price[18], energy_G$spot_price[19], energy_G$spot_price[20], energy_G$spot_price[21], energy_G$spot_price[22], energy_G$spot_price[23], energy_G$spot_price[24],            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+      
+      model$modelsense <- 
+        'min'
+      
+      model$rhs        <- c(energy_G$residual_demand[],
+                            energy_G$total_elec_iny[1]) #take the whole first column
+      
+      model$sense      <- 
+        c('>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=','>=', '=')                                                                              
+      
+      result <- gurobi(model)
+      
+      #    print('Solution:')
+      
+      #    print(result$objval)
+      
+      #    print(result$x)
+      
+      Aw = 
+        data.frame("G_result"=result$x)
+      
+      sp_solution = 
+        data.frame("G_value"=result$objval)
+      
+      if(any(energy_G$mean_thermal > 0)) {
+        
+        names(Aw)[1] <- 
+          paste0(names(Aw)[1], year_round,"_",j,"_", i)
+        
+        sp_round <- cbind(sp_round,
+                          Aw)
+        
+        names(sp_solution)[1] <- 
+          paste0(names(sp_solution)[1], year_round,"_",j,"_",i)
+        
+        sp_round_solution <- cbind(sp_round_solution,
+                                   sp_solution)
+      }
+    }
+  }
+  
+  final_x_solution = 
+    cbind(final_x_solution, 
+          sp_round[, 2:ncol(sp_round)]) 
+  
+  final_co2_solution = 
+    cbind(final_co2_solution, 
+          sp_round_solution[, 2:ncol(sp_round_solution)])
+}
+```
+
+### Plot
+
+```{r}
+final_x_solution_long = 
+  final_x_solution %>%
+  pivot_longer(starts_with("G_result"), 
+               names_to  = "date", 
+               values_to = "kWh", 
+               names_prefix = "G_result") %>%
+  mutate(kWh = as.numeric(kWh)) %>%
+  separate(date, c("year", "month", "day"), 
+           sep="_", remove=FALSE) 
+
+final_x_solution_long = 
+  final_x_solution_long %>% 
+  filter(solution_mWh %in% paste0("micro_gen_", 0:23)) %>% 
+  mutate(hour = as.numeric(substr(solution_mWh, 11, nchar(solution_mWh))))
+```
+
+```{r}
+plot_final_2 <- ggplot(data = final_x_solution_long %>% 
+                         filter(kWh != 0) %>%
+                         group_by(hour) %>%
+                         summarise(tot_days_final = n()) %>%
+                         mutate(hour = ifelse(hour == 0, 24, hour)), 
+                       aes(x=hour, y=tot_days_final)) +
+  geom_point(size=2) +
+  geom_vline(xintercept=8, color = "yellow", size=1) +
+  geom_vline(xintercept=16.5, color = "yellow", size=1) +
+  theme(text = element_text(size = 15)) +
+  labs(y = "Freq. Solutions" ,x = "Hour") +
+  theme(legend.key.size = unit(1, 'cm'))
+
+plot_final_2
+```
+
+
+```{r}
+ggsave(paste0(dir$fig, "sp_plot_final.png"),
+              width = 7, height = 4.5)
+```
+
+
+
+# Microgeneration - Subtitution
+
+## Plots
+
+First: find for the large solar the percentage of hourly data:
+```{r}
+final_gurobi2 <- final_gurobi2 %>% 
+  group_by(day, month, year) %>% 
+  mutate(total_solar=sum(solar)) %>% 
+  ungroup()
+
+final_gurobi2 <- final_gurobi2 %>% 
+  mutate(perc_tot_solar= solar/total_solar)
+
+#create the elec_injected
+
+final_gurobi2 <- final_gurobi2 %>% 
+  mutate(perc_micro = (ener_iny/(30*24))*perc_tot_solar)
+```
+
+
+```{r}
+data_prod <-  
+  final_gurobi2 %>% group_by(hour) %>%  
+  summarize(across(where(is.numeric), mean, na.rm=TRUE))
+
+prod_plot <- ggplot(data = data_prod, 
+                    aes(x=hour, y=perc_micro, color="Microgeneration") ) +
+  geom_point(aes(y=thermal, color="Fossil fuel"), size=2) + 
+  geom_point(aes(y=wind, color="Wind"), size=2) + 
+  geom_point(aes(y=solar, color="Solar"), size=2) +
+  geom_point(aes(y=biomass, color="Biomass"), size=2) +
+  geom_point(aes( y=hydro, color="Hydro"), size=2) +
+  geom_point(aes( y=demand, color="Consumption"), size=2) +
+  geom_point(size=2) + ylim(0, 1600) + 
+  theme(text = element_text(size = 15)) + 
+  scale_color_manual(name="", values=c( "Hydro"="blue", "Fossil fuel"="red", "Wind"= "green", "Solar"="orange", "Biomass"="gray", "Microgeneration"= "purple", "Consumption"="black")) + 
+  labs(y = "MWh" ,x = "Hours") + theme(legend.key.size = unit(1, 'cm'))
+
+prod_plot
+```
+
+```{r}
+ggsave(paste0(dir$fig, "prod_plot.png"), 
+       width = 7, height = 4.5)
+```
+
+```{r}
+prod_plot2 <- ggplot(data = data_prod, 
+                     aes(x=hour, y=perc_micro, color="Microgeneration") ) +
+   geom_point(aes(y=solar, color="Solar"), size=2) +
+  geom_point(size=2)  + 
+  theme(text = element_text(size = 15)) + 
+  scale_color_manual(name="", values=c(  "Solar"="orange", 
+                                         "Microgeneration"= "purple")) + 
+  labs(y = "MWh" ,x = "Hours") + theme(legend.key.size = unit(1, 'cm'))
+
+prod_plot2
+```
+
+
+```{r}
+ggsave(paste0(dir$fig,"prod_plot2.png"), 
+       width = 7, height = 4.5)
+```
+
+Percentage of thermal over total production:
+```{r}
+data_prod <- data_prod %>% mutate(thermal_total = 
+                                    thermal / (thermal + hydro + wind + solar + biomass))
+
+data_prod %>% summarize(mean_tt=mean(thermal_total, na.rm=TRUE), 
+                        sd_tt=sd(thermal_total, na.rm=TRUE), 
+                        min_tt=min(thermal_total, na.rm=TRUE), 
+                        max_tt=max(thermal_total, na.rm=TRUE))
+```
+
+```{r}
+data_sp <- final_g_spot %>% group_by(hour) %>%  
+  summarize(across(where(is.numeric), mean, na.rm=TRUE))
+
+sp_plot <- ggplot(data = data_sp, 
+                  aes(x=hour, y=spot_price)) +
+  geom_point(size=2) + 
+  #ylim(0, 0.08) + 
+  theme(text = element_text(size = 15)) + 
+  scale_color_manual(name="",) + 
+  labs(y = "Spot price (USD/MW)" ,x = "Hours") + 
+    theme(legend.key.size = unit(1, 'cm'))
+
+sp_plot
+```
+
+```{r}
+ggsave(paste0(dir$fig,"sp_plot.png"), 
+       width = 7, height = 4.5)
+```
+
+
+## Regressions
+
+
+```{r}
+CO2_3 <- feols(thermal ~  perc_micro + wind + solar + demand + total_exports | 
+                 year + month, 
+               data=final_gurobi2)
+
+reg_list_CO2 = 
+  list(CO2_3)
+```
+
+```{r}
+# Define your data and model
+data <- final_gurobi2
+
+# Define a function to estimate the model and extract coefficients
+boot_feols <- function(data, indices) {
+  d <- data[indices, ]  # Resample the data with replacement
+  CO2_3 <- feols(hydro ~ perc_micro + solar + wind + demand + total_exports | 
+                   hour*month + month*year, cluster = c('month', 'year'), 
+                 data = d)
+  return(coef(CO2_3))  # Return the coefficients
+}
+
+# Perform the bootstrap
+set.seed(123)  # For reproducibility
+boot_results <- boot(data = data, statistic = boot_feols, R = 100)  # R is the number of bootstrap samples
+
+# Display the bootstrap results
+print(boot_results)
+
+# Compute the standard errors
+bootstrap_se <- apply(boot_results$t, 2, sd)
+
+# Print the bootstrap standard errors
+print(bootstrap_se)
+
+# Obtain summary statistics like confidence intervals for the coefficients
+conf_intervals <- apply(boot_results$t, 2, function(x) quantile(x, c(0.025, 0.975)))
+
+# Print the confidence intervals
+print(conf_intervals)
+```
+
+
+```{r}
+CO2_3 <- feols(thermal ~  perc_micro + wind + demand + total_exports | 
+                 hour*month + month*year, cluster = c('month', 'year'), 
+               data=final_gurobi2)
+
+reg_list_CO2 = 
+  list(CO2_3)
+
+CO2_3b <- feols(thermal ~  perc_micro + wind + demand | 
+                  hour*month + month*year, cluster = c('month', 'year'), 
+                data=final_gurobi2)
+
+reg_list_CO2 = 
+ c(reg_list_CO2, list(CO2_3b))
+
+CO2_5 <- feols(hydro ~  perc_micro + wind + total_exports + demand | 
+                 hour*month + month*year, cluster = c('month', 'year'), 
+               data=final_gurobi2)
+
+reg_list_CO2 = 
+ c(reg_list_CO2, list(CO2_5))
+
+CO2_5b <- feols(hydro ~  perc_micro + wind + demand | 
+                 hour*month + month*year, cluster = c('month', 'year'), 
+               data=final_gurobi2)
+
+reg_list_CO2 = 
+ c(reg_list_CO2, list(CO2_5b))
+```
+
+```{r}
+setFixest_dict(c(thermal    = "Thermal Production (MWh)",
+                 hydro      = "Hydro Production (MWh)",
+                 perc_micro = "Microproduction (MWh)",
+                 wind       = "Wind Production (MWh)",
+                 demand     = "Consumption (MWh)",
+                 total_exports = "Exports (MWh)",
+                 dto   = "State",
+                 month = "Month",
+                 hour  = "Hour",
+                 year = "Year"))
+
+etable(reg_list_CO2,
+         file = paste0(dir$tab,
+                       "results_CO2.txt"),
+       replace = TRUE)
+
+etable(reg_list_CO2)
+```
+
+
+
+```{r}
+long_term_h0 <- final_gurobi2 %>% 
+  filter(hour=="13")
+
+CO2_h0 <- feols(thermal ~  perc_micro + wind + 
+                  demand + total_exports| month, 
+                cluster = c('month', 'year'), data=long_term_h0)
+summary(CO2_h0)
+```
+

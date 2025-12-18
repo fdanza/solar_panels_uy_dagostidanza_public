@@ -1,0 +1,26 @@
+
+\begingroup
+\centering
+\begin{tabular}{lcc}
+   \tabularnewline \midrule \midrule
+   Dependent Variable: & \multicolumn{2}{c}{Solar Panel Capacity (W)}\\
+   Model:       & (1)                   & (2)\\  
+   \midrule
+   \emph{Variables}\\
+   Constant     & 40,235.2$^{***}$      &   \\   
+                & (5,955.3)             &   \\   
+   Year         & 27.79                 & 24.23\\   
+                & (706.2)               & (681.8)\\   
+   \midrule
+   \emph{Fixed-effects}\\
+   Month        &                       & Yes\\  
+   \midrule
+   \emph{Fit statistics}\\
+   Observations & 868                   & 868\\  
+   R$^2$        & $3.56\times 10^{-6}$  & 0.01131\\  
+   Within R$^2$ &                       & $2.62\times 10^{-6}$\\   
+   \midrule \midrule
+\end{tabular}
+\par\endgroup
+
+

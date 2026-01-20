@@ -1,0 +1,27 @@
+
+\begingroup
+\centering
+\begin{tabular}{lccc}
+   \tabularnewline \midrule \midrule
+   Dependent Variables:     & Extraction (kWh) & Injection (kWh) & Net Demand (kWh)\\  
+   Model:                   & (1)              & (2)             & (3)\\  
+   \midrule
+   \emph{Variables}\\
+   Solar Panel Installation & -1,491.2$^{***}$ & 2,135.8$^{***}$ & -3,584.4$^{***}$\\   
+                            & (177.1)          & (138.9)         & (331.9)\\   
+   \midrule
+   \emph{Fixed-effects}\\
+   ID                       & Yes              & Yes             & Yes\\  
+   Month                    & Yes              & Yes             & Yes\\  
+   \midrule
+   \emph{Fit statistics}\\
+   Observations             & 17,409           & 13,033          & 13,033\\  
+   R$^2$                    & 0.86611          & 0.42555         & 0.86369\\  
+   Within R$^2$             & 0.01395          & 0.18917         & 0.05805\\  
+   \midrule \midrule
+   \multicolumn{4}{l}{\emph{Clustered (ID) standard-errors in parentheses}}\\
+   \multicolumn{4}{l}{\emph{Signif. Codes: ***: 0.01, **: 0.05, *: 0.1}}\\
+\end{tabular}
+\par\endgroup
+
+
